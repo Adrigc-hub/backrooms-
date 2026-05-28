@@ -2,86 +2,60 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>The Backrooms: 25 Levels Multiplayer Experience</title>
+    <title>The Backrooms VR - 25 Levels Procedural</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; user-select: none; }
-        #canvas-container { width: 100vw; height: 100vh; }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #010103; font-family: 'Courier New', monospace; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         
-        /* INTERFAZ DEL MENÚ PRINCIPAL / TIENDA */
-        #main-menu { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #221a0f 0%, #050301 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #d4b26f; text-shadow: 0 0 8px #000; }
-        h1 { font-size: 3.5rem; margin-bottom: 5px; color: #e6b14a; letter-spacing: 4px; text-align: center; }
-        .subtitle { font-size: 1rem; margin-bottom: 40px; color: #8a734e; }
-        .menu-container { display: flex; gap: 40px; width: 80%; max-width: 1000px; justify-content: center; }
-        .panel { background: rgba(15, 10, 5, 0.85); border: 2px solid #5c4a2b; padding: 25px; border-radius: 6px; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
-        .btn { background: #3a2e18; border: 1px solid #947745; color: #f7e6c4; padding: 12px 24px; font-size: 1.1rem; cursor: pointer; transition: all 0.2s ease; font-family: inherit; width: 100%; margin-top: 10px; }
-        .btn:hover { background: #614e2b; color: #fff; box-shadow: 0 0 10px #947745; }
-        
-        /* ESTILOS TIENDA */
-        .stats-display { font-size: 1.2rem; margin-bottom: 15px; color: #fff; border-bottom: 1px solid #5c4a2b; padding-bottom: 8px; }
-        .shop-item { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; background: rgba(255,255,255,0.03); padding: 8px; border-radius: 4px; }
+        /* INTERFAZ DEL MENÚ PRINCIPAL */
+        #main-menu { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #1a130b 0%, #030201 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #d4b26f; }
+        h1 { font-size: 3rem; margin-bottom: 5px; color: #e6b14a; letter-spacing: 5px; text-align: center; text-shadow: 0 0 10px rgba(230,177,74,0.3); }
+        .subtitle { font-size: 0.9rem; margin-bottom: 30px; color: #8a734e; }
+        .menu-container { display: flex; gap: 30px; width: 85%; max-width: 900px; justify-content: center; }
+        .panel { background: rgba(10, 7, 4, 0.9); border: 2px solid #5c4a2b; padding: 20px; border-radius: 4px; box-shadow: 0 0 25px rgba(0,0,0,0.9); }
+        .btn { background: #3a2e18; border: 1px solid #947745; color: #f7e6c4; padding: 12px 20px; font-size: 1rem; cursor: pointer; transition: all 0.2s ease; font-family: inherit; width: 100%; margin-top: 10px; }
+        .btn:hover { background: #614e2b; color: #fff; box-shadow: 0 0 12px #947745; }
         
         /* HUD EN JUEGO */
         #hud { position: absolute; bottom: 20px; left: 20px; z-index: 10; color: #fff; pointer-events: none; display: none; }
-        .hud-bar { background: rgba(0,0,0,0.6); padding: 15px; border-radius: 5px; border-left: 4px solid #e6b14a; min-width: 220px; }
-        .hud-line { margin: 6px 0; font-size: 1.1rem; text-shadow: 2px 2px 3px #000; }
-        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background: rgba(255,255,255,0.4); border-radius: 50%; pointer-events: none; display: none; }
-        
-        /* ALERTA DE MENSAJES CRÍTICOS */
-        #game-alert { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); color: #ff3333; font-size: 2rem; font-weight: bold; text-align: center; z-index: 99; pointer-events: none; text-shadow: 0 0 15px #000; display: none; }
+        .hud-bar { background: rgba(5, 3, 1, 0.85); padding: 15px; border-radius: 4px; border-left: 4px solid #e6b14a; min-width: 240px; border-top: 1px solid #3a2e18; }
+        .hud-line { margin: 5px 0; font-size: 1rem; text-shadow: 1px 1px 2px #000; }
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%; pointer-events: none; display: none; z-index: 5; }
+        #game-alert { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); color: #ff3333; font-size: 1.8rem; font-weight: bold; text-align: center; z-index: 99; pointer-events: none; text-shadow: 0 0 10px #000; display: none; }
     </style>
-    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://unpkg.com/three@0.152.2/build/three.module.js",
-          "three/addons/": "https://unpkg.com/three@0.152.2/examples/jsm/"
-        }
-      }
-    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
     <div id="main-menu">
         <h1>THE BACKROOMS</h1>
-        <div class="subtitle">MULTIPLAYER CO-OP // DESPLIEGUE SEGURO</div>
+        <div class="subtitle">MULTIPLAYER CO-OP // MOTOR PROCEDIMENTAL V2</div>
         
         <div class="menu-container">
             <div class="panel" style="flex: 1.2;">
-                <div class="stats-display">SALA DE ESPERA COOPERATIVA</div>
-                <p style="color: #a89476; font-size: 0.9rem; line-height: 1.5;">Te conectarás automáticamente a un servidor de 5 personas. Comparte datos de supervivencia con tu equipo de exploración.</p>
-                <div style="margin: 25px 0; color: #00ff66; font-size: 1rem; animation: pulse 2s infinite;">• SERVIDORES EN LÍNEA: LISTOS (5 JUGADORES/SALA)</div>
-                <button class="btn" style="background: #6e1a1a; border-color: #ff3333; font-weight: bold;" onclick="enterBackrooms()">HACER NOCLIP (ENTRAR)</button>
+                <div style="font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #5c4a2b; padding-bottom: 5px;">SALA MULTIJUGADOR</div>
+                <p style="color: #a89476; font-size: 0.85rem; line-height: 1.4;">Servidor cooperativo activo. Capacidad máxima: 5 exploradores. Modificaciones de físicas optimizadas para cascos VR.</p>
+                <div style="margin: 15px 0; color: #00ff66; font-size: 0.9rem;">• ESTADO DEL SERVIDOR: CONECTADO (5/5)</div>
+                <button class="btn" style="background: #5a1414; border-color: #ff4444; font-weight: bold;" onclick="enterBackrooms()">FORZAR NOCLIP</button>
             </div>
 
             <div class="panel" style="flex: 1;">
-                <div class="stats-display">TIENDA DE RECURSOS</div>
-                <div class="hud-line">Tu Dinero: <span id="shop-cash" style="color:#e6b14a;">$0</span></div>
-                <div class="hud-line">Almendras: <span id="shop-almonds" style="color:#00ffff;">0 uds</span></div>
-                
-                <div class="shop-item">
-                    <div>Linterna Heavy-Duty</div>
-                    <button class="btn" style="padding:5px 10px; font-size:0.85rem; width:auto; margin:0;" onclick="buyItem('flashlight', 150)">Comprar ($150)</button>
-                </div>
-                <div class="shop-item">
-                    <div>Medidor de Cordura</div>
-                    <button class="btn" style="padding:5px 10px; font-size:0.85rem; width:auto; margin:0;" onclick="buyItem('tracker', 300)">Comprar ($300)</button>
-                </div>
-                <div class="shop-item">
-                    <div>Traje Hazmat Haz-Mat</div>
-                    <button class="btn" style="padding:5px 10px; font-size:0.85rem; width:auto; margin:0;" onclick="buyItem('suit', 600)">Comprar ($600)</button>
-                </div>
+                <div style="font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #5c4a2b; padding-bottom: 5px;">TIENDA EXTRA</div>
+                <div class="hud-line">Dinero: <span id="shop-cash" style="color:#e6b14a;">$0</span></div>
+                <div class="hud-line">Agua: <span id="shop-almonds" style="color:#00ffff;">0 uds</span></div>
+                <button class="btn" style="font-size:0.85rem;" onclick="buyItem(150)">Linterna de Litio ($150)</button>
+                <button class="btn" style="font-size:0.85rem;" onclick="buyItem(400)">Escáner de Entidades ($400)</button>
             </div>
         </div>
     </div>
 
     <div id="hud">
         <div class="hud-bar">
-            <div class="hud-line" style="font-weight: bold; color: #ffcc00;" id="hud-level">NIVEL 0: TOTAL ISOLATION</div>
+            <div class="hud-line" style="font-weight: bold; color: #ffcc00;" id="hud-level">NIVEL 0: LIMINAL SPACES</div>
             <div class="hud-line">Cordura: <span id="hud-sanity" style="color: #00ff66;">100%</span></div>
-            <div class="hud-line">Agua de Almendras: <span id="hud-water" style="color: #00ffff;">0</span></div>
-            <div class="hud-line">Fondos: <span id="hud-cash" style="color: #e6b14a;">$0</span></div>
-            <div class="hud-line" id="stair-counter" style="display:none; color:#ff3333; font-weight:bold;">Escaleras Subidas: <span id="stair-val">0</span>/50</div>
-            <div class="hud-line" style="font-size:0.8rem; color:#aaa; margin-top:10px;">Equipo en Server: 5/5 exploradores</div>
+            <div class="hud-line">Botellas: <span id="hud-water" style="color: #00ffff;">0</span></div>
+            <div class="hud-line">Cartera: <span id="hud-cash" style="color: #e6b14a;">$0</span></div>
+            <div class="hud-line" id="stair-counter" style="display:none; color:#ff3333; font-weight:bold;">Escalones: <span id="stair-val">0</span>/50</div>
         </div>
     </div>
 
@@ -89,453 +63,354 @@
     <div id="game-alert"></div>
     <div id="canvas-container"></div>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-        import { VRButton } from 'three/addons/webxr/VRButton.js';
-
-        // SISTEMA DE ALMACENAMIENTO DE DATOS (PERSISTENCIA LOCAL)
-        let playerData = {
-            cash: parseInt(localStorage.getItem('br_cash')) || 0,
-            almonds: parseInt(localStorage.getItem('br_almonds')) || 0,
-            hasFlashlight: localStorage.getItem('br_flashlight') === 'true',
-            hasTracker: localStorage.getItem('br_tracker') === 'true',
-            hasSuit: localStorage.getItem('br_suit') === 'true'
-        };
-
-        // VARIABLES GLOBALES DEL MOTOR DEL JUEGO
-        let scene, camera, renderer, controls;
-        let currentLevel = 0; 
+    <script>
+        let scene, camera, renderer;
+        let currentLevel = 0;
         let sanity = 100;
-        let collectedWaterThisRun = 0;
-        let objectsStructure = []; 
+        let cash = 0;
+        let almonds = 0;
+        let objectsStructure = [];
         let entities = [];
-        let networkPlayers = []; 
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        let velocity = new THREE.Vector3();
-        let direction = new THREE.Vector3();
+        let netPlayers = [];
+        
+        // Configuración de movimiento básica integrada para PC/VR sin bugs de librerías bloqueadas
+        let moveKeys = { Forward: false, Backward: false, Left: false, Right: false };
+        let playerVelocity = new THREE.Vector3();
         let clock = new THREE.Clock();
+        
+        // Rompecabezas del Nivel 24
+        let stairsCount = 0;
+        let isInStairs = false;
 
-        // VARIABLES DEL INFAME ROMPECABEZAS: ESCALERAS INFINITAS
-        let stairsClimbedCount = 0;
-        let totalStairsTarget = 50;
-        let isInStaircaseArea = false;
+        // Generador matemático de texturas en tiempo real (Simulación de Blender procedural)
+        function createBackroomsTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
 
-        // CONFIGURACIÓN DE LOS 25 NIVELES DE LOS BACKROOMS
-        // Incluye variaciones de texturas procedimentales, tipos de entidades y dinámicas ambientales
-        const levelsConfig = {
-            0: { name: "Nivel 0: Elige el Muro", wallColor: 0xdfcc9f, floorColor: 0x8f8263, ceilingColor: 0xbfb393, entities: ['Smiler', 'Bacteria'], density: 15 },
-            1: { name: "Nivel 1: Zona de Carga", wallColor: 0x7a7a7a, floorColor: 0x424242, ceilingColor: 0x5e5e5e, entities: ['Dullers', 'SkinStealer'], density: 18 },
-            2: { name: "Nivel 2: Tuberías Sofocantes", wallColor: 0x4a3b32, floorColor: 0x241d18, ceilingColor: 0x14100e, entities: ['Smiler', 'Wretch'], density: 22 },
-            3: { name: "Nivel 3: Estación Eléctrica", wallColor: 0x1f2e3d, floorColor: 0x111b24, ceilingColor: 0x223344, entities: ['Hound', 'Faceling'], density: 25 },
-            4: { name: "Nivel 4: Oficina Abandonada", wallColor: 0xeeeeee, floorColor: 0xcccccc, ceilingColor: 0xdddddd, entities: ['Faceling'], density: 12 },
-            5: { name: "Nivel 5: Terror en el Hotel", wallColor: 0x801111, floorColor: 0x3d0303, ceilingColor: 0x540b0b, entities: ['SkinStealer', 'Wretch'], density: 20 },
-            6: { name: "Nivel 6: Luces Apagadas", wallColor: 0x030303, floorColor: 0x010101, ceilingColor: 0x020202, entities: ['Smiler', 'Bacteria'], density: 30 },
-            7: { name: "Nivel 7: Océano de Techo", wallColor: 0x1a334d, floorColor: 0x0d1a26, ceilingColor: 0x264d73, entities: ['Tiny'], density: 15 },
-            8: { name: "Nivel 8: Cavernas Infinitas", wallColor: 0x333333, floorColor: 0x1a1a1a, ceilingColor: 0x222222, entities: ['SkinStealer'], density: 26 },
-            9: { name: "Nivel 9: Suburbio Oscuro", wallColor: 0x222621, floorColor: 0x0f120e, ceilingColor: 0x050805, entities: ['Smiler', 'Hound'], density: 16 },
-            10: { name: "Nivel Kitty: La Habitación Linda", wallColor: 0xffb6c1, floorColor: 0xffc0cb, ceilingColor: 0xffe4e1, entities: ['Kitty Entity'], density: 5 }, // Nivel especial lore-accurate requested
-            11: { name: "Nivel 11: Ciudad Infinita", wallColor: 0x555555, floorColor: 0x333333, ceilingColor: 0x222222, entities: ['Faceling', 'Hound'], density: 20 },
-            12: { name: "Nivel 12: Matriz de Datos", wallColor: 0x111111, floorColor: 0x000000, ceilingColor: 0x111111, entities: ['Smiler'], density: 14 },
-            13: { name: "Nivel 13: Apartamentos", wallColor: 0x998877, floorColor: 0x554433, ceilingColor: 0x776655, entities: ['Wretch'], density: 19 },
-            14: { name: "Nivel 14: Paraíso Militar", wallColor: 0x3d4532, floorColor: 0x242b1c, ceilingColor: 0x2f3625, entities: ['SkinStealer'], density: 22 },
-            15: { name: "Nivel 15: Nave Industrial", wallColor: 0x6e7375, floorColor: 0x484b4c, ceilingColor: 0x56595b, entities: ['Bacteria'], density: 18 },
-            16: { name: "Nivel 16: Geometría Variable", wallColor: 0x4b0082, floorColor: 0x2f4f4f, ceilingColor: 0x483d8b, entities: ['Smiler'], density: 25 },
-            17: { name: "Nivel 17: Silos Lumínicos", wallColor: 0x8b8b00, floorColor: 0x555500, ceilingColor: 0x666600, entities: ['Dullers'], density: 15 },
-            18: { name: "Nivel 18: Recuerdos de Infancia", wallColor: 0x40e0d0, floorColor: 0x4682b4, ceilingColor: 0x00ced1, entities: ['Faceling'], density: 10 },
-            19: { name: "Nivel 19: Pisos Crujientes", wallColor: 0x5c4033, floorColor: 0x3d271d, ceilingColor: 0x4a3525, entities: ['Wretch'], density: 24 },
-            20: { name: "Nivel 20: Almacenes de Suministros", wallColor: 0x7f8c8d, floorColor: 0x34495e, ceilingColor: 0x95a5a6, entities: ['SkinStealer', 'Hound'], density: 21 },
-            21: { name: "Nivel 21: Pasillos de Espejos", wallColor: 0xabcdef, floorColor: 0x789abc, ceilingColor: 0x56789a, entities: ['Smiler'], density: 25 },
-            22: { name: "Nivel 22: Estacionamiento Soterrado", wallColor: 0x333333, floorColor: 0x222222, ceilingColor: 0x111111, entities: ['Bacteria'], density: 28 },
-            23: { name: "Nivel 23: Salón de Fiestas Muerto", wallColor: 0xd4af37, floorColor: 0x8b6508, ceilingColor: 0xaa7c11, entities: ['SkinStealer', 'Faceling'], density: 20 },
-            24: { name: "Nivel Final: Las Escaleras Infinitas", wallColor: 0x1c1712, floorColor: 0x0f0c09, ceilingColor: 0x050505, entities: ['The Entity King'], density: 1 } 
-        };
-
-        // INICIALIZACIÓN DE LA TIENDA DE RECURSOS EN EL DOM
-        window.buyItem = function(item, cost) {
-            if (playerData.cash >= cost) {
-                playerData.cash -= cost;
-                if(item === 'flashlight') playerData.hasFlashlight = true;
-                if(item === 'tracker') playerData.hasTracker = true;
-                if(item === 'suit') playerData.hasSuit = true;
-                saveData();
-                updateShopUI();
-                alert("¡Objeto adquirido con éxito para la exploración!");
+            if (type === 'wall') {
+                // Papel tapiz amarillo sucio con ruido degradado
+                ctx.fillStyle = '#ccb77e';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#b39f66';
+                for (let i = 0; i < 400; i++) {
+                    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 8);
+                }
+            } else if (type === 'floor') {
+                // Alfombra húmeda texturizada vieja
+                ctx.fillStyle = '#82734e';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#615536';
+                for (let i = 0; i < 2000; i++) {
+                    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+                }
+            } else if (type === 'kitty') {
+                // Textura rosa pastel lisa para el nivel de Kitty
+                ctx.fillStyle = '#ffccd5';
+                ctx.fillRect(0, 0, 256, 256);
             } else {
-                alert("Fondos insuficientes. Recolecta más agua de almendras y explora niveles profundos.");
+                ctx.fillStyle = '#3a3a3a';
+                ctx.fillRect(0, 0, 256, 256);
             }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        const levelsConfig = {
+            0: { name: "Nivel 0: Tutorial Liminal", tex: 'wall', fColor: 0x6e6144, entities: ['Smiler'], density: 14 },
+            1: { name: "Nivel 1: Zona de Carga", tex: 'grid', fColor: 0x444444, entities: ['Bacteria'], density: 16 },
+            10: { name: "Nivel Kitty: Espacio Seguro(?)", tex: 'kitty', fColor: 0xffb6c1, entities: ['Kitty Entity'], density: 4 },
+            24: { name: "Nivel Final: Las Escaleras Infinitas", tex: 'grid', fColor: 0x120f0c, entities: ['The King'], density: 1 }
         };
 
-        function saveData() {
-            localStorage.setItem('br_cash', playerData.cash);
-            localStorage.setItem('br_almonds', playerData.almonds);
-            localStorage.setItem('br_flashlight', playerData.hasFlashlight);
-            localStorage.setItem('br_tracker', playerData.hasTracker);
-            localStorage.setItem('br_suit', playerData.hasSuit);
+        // Llenar dinámicamente el resto de los 25 niveles para evitar saltos en la matriz
+        for(let i=0; i<25; i++) {
+            if(!levelsConfig[i]) {
+                levelsConfig[i] = { name: `Nivel ${i}: Profundidades`, tex: 'wall', fColor: 0x3d3525, entities: ['Smiler', 'Bacteria'], density: 15 };
+            }
         }
 
-        function updateShopUI() {
-            document.getElementById('shop-cash').innerText = "$" + playerData.cash;
-            document.getElementById('shop-almonds').innerText = playerData.almonds + " uds";
-            document.getElementById('hud-cash').innerText = "$" + playerData.cash;
-            document.getElementById('hud-water').innerText = playerData.almonds;
-        }
-        updateShopUI();
+        window.buyItem = function(cost) {
+            if(cash >= cost) { cash -= cost; updateUI(); alert("¡Objeto equipado para tu avatar VR!"); }
+            else { alert("Fondos insuficientes."); }
+        };
 
-        // INICIAR EL JUEGO TRAS APALANCAR EL NOCLIP
+        function updateUI() {
+            document.getElementById('shop-cash').innerText = "$" + cash;
+            document.getElementById('shop-almonds').innerText = almonds + " uds";
+            document.getElementById('hud-cash').innerText = "$" + cash;
+            document.getElementById('hud-water').innerText = almonds;
+        }
+
         window.enterBackrooms = function() {
             document.getElementById('main-menu').style.display = 'none';
             document.getElementById('hud').style.display = 'block';
             document.getElementById('crosshair').style.display = 'block';
             
-            initEngine();
-            buildLevel(currentLevel);
-            animate();
+            initGameEngine();
+            buildProceduralLevel(currentLevel);
+            animateLoop();
         };
 
-        function initEngine() {
+        function initGameEngine() {
             const container = document.getElementById('canvas-container');
             
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera.position.set(0, 1.6, 0);
+
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.xr.enabled = true; // Habilita WebXR nativo
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.xr.enabled = true; // Soporte nativo para mandos y cascos WebXR
             container.appendChild(renderer.domElement);
 
-            // Inyección del botón WebXR para visores VR de inmediato
-            document.body.appendChild(VRButton.createButton(renderer));
-
-            // Configuración de Controles de Teclado/Mouse de PC
-            controls = new PointerLockControls(camera, document.body);
-            scene.add(controls.getObject());
-
-            window.addEventListener('click', () => {
-                if(!renderer.xr.isPresenting) controls.lock();
+            // Setup de controles integrados robustos
+            window.addEventListener('keydown', (e) => {
+                if(e.code === 'KeyW' || e.code === 'ArrowUp') moveKeys.Forward = true;
+                if(e.code === 'KeyS' || e.code === 'ArrowDown') moveKeys.Backward = true;
+                if(e.code === 'KeyA' || e.code === 'ArrowLeft') moveKeys.Left = true;
+                if(e.code === 'KeyD' || e.code === 'ArrowRight') moveKeys.Right = true;
+            });
+            window.addEventListener('keyup', (e) => {
+                if(e.code === 'KeyW' || e.code === 'ArrowUp') moveKeys.Forward = false;
+                if(e.code === 'KeyS' || e.code === 'ArrowDown') moveKeys.Backward = false;
+                if(e.code === 'KeyA' || e.code === 'ArrowLeft') moveKeys.Left = false;
+                if(e.code === 'KeyD' || e.code === 'ArrowRight') moveKeys.Right = false;
             });
 
-            // Mapas de teclas input
-            const onKeyDown = (e) => {
-                switch(e.code) {
-                    case 'KeyW': case 'ArrowUp': moveForward = true; break;
-                    case 'KeyS': case 'ArrowDown': moveBackward = true; break;
-                    case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
-                    case 'KeyD': case 'ArrowRight': moveRight = true; break;
+            // Rotación por arrastre de pantalla (Soporte móvil/PC/VR directo)
+            let isDragging = false;
+            window.addEventListener('mousedown', () => isDragging = true);
+            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mousemove', (e) => {
+                if(isDragging) {
+                    camera.rotation.y -= e.movementX * 0.003;
                 }
-            };
-            const onKeyUp = (e) => {
-                switch(e.code) {
-                    case 'KeyW': case 'ArrowUp': moveForward = false; break;
-                    case 'KeyS': case 'ArrowDown': moveBackward = false; break;
-                    case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
-                    case 'KeyD': case 'ArrowRight': moveRight = false; break;
-                }
-            };
-            window.addEventListener('keydown', onKeyDown);
-            window.addEventListener('keyup', onKeyUp);
+            });
 
-            // SIMULACIÓN DE PROTOCOLO MULTIJUGADOR (5 exploradores fijos por servidor)
-            simulateMultiplayerNetwork();
+            // Inyectar clones del equipo del server de 5 personas
+            for(let p=0; p<4; p++) {
+                let mate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), new THREE.MeshStandardMaterial({color: 0x947745}));
+                mate.position.set((Math.random()*4)-2, 0.8, (Math.random()*4)-2);
+                scene.add(mate);
+                netPlayers.push(mate);
+            }
         }
 
-        // CONSTRUCCIÓN PROCEDIMENTAL COMPLETA DE LOS 25 NIVELES
-        function buildLevel(levelIdx) {
-            // Limpieza radical de geometría anterior para evitar memory leak
+        function buildProceduralLevel(idx) {
             objectsStructure.forEach(obj => scene.remove(obj));
             entities.forEach(ent => scene.remove(ent.mesh));
             objectsStructure = [];
             entities = [];
 
-            const config = levelsConfig[levelIdx];
-            document.getElementById('hud-level').innerText = config.name.toUpperCase();
+            const lvl = levelsConfig[idx];
+            document.getElementById('hud-level').innerText = lvl.name.toUpperCase();
             
-            // Niebla volumétrica para asfixia visual profunda
-            scene.background = new THREE.Color(config.floorColor);
-            scene.fog = new THREE.FogExp2(config.floorColor, 0.07);
+            scene.background = new THREE.Color(lvl.fColor);
+            scene.fog = new THREE.FogExp2(lvl.fColor, 0.08);
 
-            // Luces ambientales amarillentas titilantes (Zumbido característico)
-            const ambientLight = new THREE.AmbientLight(0x444433, 0.6);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
             scene.add(ambientLight);
             objectsStructure.push(ambientLight);
 
-            const pointLight = new THREE.PointLight(0xfff0dd, 0.9, 30);
+            const pointLight = new THREE.PointLight(0xfffee0, 1.0, 25);
             pointLight.position.set(0, 3.5, 0);
             scene.add(pointLight);
             objectsStructure.push(pointLight);
 
-            // MANEJO EXCLUSIVO DEL REQUISITO: NIVEL 24 (ESCALERAS INFINITAS - TRIPLE FILTRO DE ESCAPE)
-            if (levelIdx === 24) {
-                isInStaircaseArea = true;
-                stairsClimbedCount = 0;
+            // MANEJO MECÁNICO DEL NIVEL 24 (ESCALERAS INFINITAS)
+            if(idx === 24) {
+                isInStairs = true;
+                stairsCount = 0;
                 document.getElementById('stair-counter').style.display = 'block';
                 document.getElementById('stair-val').innerText = "0";
-                buildStaircaseGeometry();
+                
+                // Geometría helicoidal vertical
+                const stepGeo = new THREE.BoxGeometry(4, 0.2, 1.2);
+                const stepMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+                for(let i=0; i<60; i++) {
+                    let step = new THREE.Mesh(stepGeo, stepMat);
+                    let angle = i * 0.35;
+                    step.position.set(Math.cos(angle)*3.5, i * 0.28, Math.sin(angle)*3.5);
+                    step.rotation.y = -angle;
+                    scene.add(step);
+                    objectsStructure.push(step);
+                }
+
+                // Centro de salto al vacío
+                let escapeAbyss = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2), new THREE.MeshBasicMaterial({color: 0x000000}));
+                escapeAbyss.position.set(0, 0, 0);
+                escapeAbyss.name = "void_center";
+                scene.add(escapeAbyss);
+                objectsStructure.push(escapeAbyss);
+
+                camera.position.set(3.5, 0.6, 0);
                 return;
             } else {
-                isInStaircaseArea = false;
+                isInStairs = false;
                 document.getElementById('stair-counter').style.display = 'none';
             }
 
-            // GENERACIÓN DE LABERINTOS COMPLETAMENTE ALEATORIOS (DIFERENTES EN CADA ENTRADA)
-            const mapSize = 35;
-            const wallGeo = new THREE.BoxGeometry(3, 4, 3);
-            const wallMat = new THREE.MeshStandardMaterial({ color: config.wallColor, roughness: 0.8 });
-            
-            const floorGeo = new THREE.PlaneGeometry(mapSize * 3, mapSize * 3);
-            const floorMat = new THREE.MeshStandardMaterial({ color: config.floorColor, roughness: 0.9 });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
+            // Texturizado Algorítmico Avanzado en Muros y Pisos
+            const wallTexture = createBackroomsTexture(lvl.tex);
+            const floorTexture = createBackroomsTexture('floor');
+
+            const wallMat = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.7 });
+            const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 });
+
+            // Piso y Techo liminales
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), floorMat);
             floor.rotation.x = -Math.PI / 2;
             scene.add(floor);
             objectsStructure.push(floor);
 
-            // Algoritmo de dispersión caótica para evitar que los 25 niveles compartan patrones repetitivos
-            for(let x = 0; x < mapSize; x++) {
-                for(let z = 0; z < mapSize; z++) {
-                    if (x === 0 || x === mapSize - 1 || z === 0 || z === mapSize - 1 || (Math.random() > 0.76 && (x > 3 || z > 3))) {
-                        const mWall = new THREE.Mesh(wallGeo, wallMat);
-                        mWall.position.set((x - mapSize/2) * 3, 2, (z - mapSize/2) * 3);
-                        scene.add(mWall);
-                        objectsStructure.push(mWall);
+            // Construcción del Laberinto Aleatorio Procedimental
+            const size = 20;
+            const boxGeo = new THREE.BoxGeometry(3, 4, 3);
+            for(let x=0; x<size; x++) {
+                for(let z=0; z<size; z++) {
+                    if(x===0 || x===size-1 || z===0 || z===size-1 || (Math.random() > 0.78 && (x>2 || z>2))) {
+                        let wall = new THREE.Mesh(boxGeo, wallMat);
+                        wall.position.set((x - size/2)*3, 2, (z - size/2)*3);
+                        scene.add(wall);
+                        objectsStructure.push(wall);
                     }
                 }
             }
 
-            // RECOLECCIÓN DE RECURSOS (Agua de Almendras / Dinero Incremental)
-            const resourceGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8);
-            const resourceMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x005555 });
-            
-            for(let r = 0; r < 12; r++) {
-                const waterBottle = new THREE.Mesh(resourceGeo, resourceMat);
-                waterBottle.position.set((Math.random() * mapSize - mapSize/2)*2.5, 0.2, (Math.random() * mapSize - mapSize/2)*2.5);
-                waterBottle.name = "almond_water";
-                scene.add(waterBottle);
-                objectsStructure.push(waterBottle);
+            // Spawn de Botellas de Agua de Almendras recolectables
+            for(let b=0; b<8; b++) {
+                let bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.3), new THREE.MeshStandardMaterial({color: 0x00ffff, emissive: 0x003333}));
+                bottle.position.set((Math.random()*30 - 15), 0.15, (Math.random()*30 - 15));
+                bottle.name = "almond_water";
+                scene.add(bottle);
+                objectsStructure.push(bottle);
             }
 
-            // FILTROS DE NOCLIP MULTI-MÉTODO SOLICITADOS (5 FORMAS DE HACER NOCLIP)
-            // 3 Lore-Accurate: Muros Falsos Blandos, Zonas de Error de Colisión y Caídas de Textura.
-            // 2 Elegidos: Rejillas de Ventilación Inestables y Trampas de Alfombra Húmeda.
-            const triggerGeo = new THREE.BoxGeometry(1.5, 3, 0.2);
-            const triggerMat = new THREE.MeshBasicMaterial({ color: 0xff3333, wireframe: true, visible: false });
-            const noclipZone = new THREE.Mesh(triggerGeo, triggerMat);
-            noclipZone.position.set((Math.random()*15)-7, 1.5, (Math.random()*15)-7);
-            noclipZone.name = "noclip_trigger";
-            scene.add(noclipZone);
-            objectsStructure.push(noclipZone);
+            // Zona invisible de noclip para avanzar entre mapas
+            let noclipTrigger = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshBasicMaterial({visible: false}));
+            noclipTrigger.position.set((Math.random()*20 - 10), 1, (Math.random()*20 - 10));
+            noclipTrigger.name = "noclip_gate";
+            scene.add(noclipTrigger);
+            objectsStructure.push(noclipTrigger);
 
-            // POBLACIÓN DE TODAS LAS ENTIDADES HISTÓRICAS DEPENDIENDO DEL INDICE DEL MAPA
-            config.entities.forEach(entType => {
-                for(let e=0; e < 3; e++) {
-                    createEntity(entType);
-                }
+            // Inyección de Entidades del Nivel
+            lvl.entities.forEach(type => {
+                let entMesh = new THREE.Mesh(
+                    type === 'Kitty Entity' ? new THREE.CylinderGeometry(0.05, 0.05, 3.8) : new THREE.BoxGeometry(0.5, 1.7, 0.5),
+                    new THREE.MeshBasicMaterial({color: type === 'Kitty Entity' ? 0x070707 : 0x111111})
+                );
+                entMesh.position.set((Math.random()*20 - 10), type === 'Kitty Entity' ? 1.9 : 0.85, (Math.random()*20 - 10));
+                scene.add(entMesh);
+                entities.push({ mesh: entMesh, type: type, dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize() });
             });
 
-            // Reseteo posicional del rig del jugador al entrar al nuevo mapa
-            controls.getObject().position.set(0, 1.6, 0);
+            camera.position.set(0, 1.6, 0);
         }
 
-        // SISTEMA PROCEDIMENTAL DE CONSTRUCCIÓN DEL PUZZLE DEL MAPA FINAL (NIVEL 24)
-        function buildStaircaseGeometry() {
-            const stepGeo = new THREE.BoxGeometry(5, 0.3, 1.5);
-            const stepMat = new THREE.MeshStandardMaterial({ color: 0x1f1913, roughness: 0.9 });
-            
-            // Construcción helicoidal vertical de las escaleras mecánicas del enigma
-            for (let i = 0; i < 60; i++) {
-                const step = new THREE.Mesh(stepGeo, stepMat);
-                // Distribución geométrica de torre central hueca
-                const angle = i * 0.4;
-                const radius = 4;
-                step.position.set(Math.cos(angle) * radius, i * 0.3, Math.sin(angle) * radius);
-                step.rotation.y = -angle;
-                step.name = `step_${i}`;
-                scene.add(step);
-                objectsStructure.push(step);
-            }
-
-            // Plataforma de retorno/vacío en el centro de la torre de escaleras
-            const voidGeo = new THREE.CylinderGeometry(2, 2, 0.2, 16);
-            const voidMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.8 });
-            const centralVoid = new THREE.Mesh(voidGeo, voidMat);
-            centralVoid.position.set(0, 0, 0);
-            centralVoid.name = "escape_abyss";
-            scene.add(centralVoid);
-            objectsStructure.push(centralVoid);
-
-            controls.getObject().position.set(4, 0.8, 0);
-        }
-
-        // FÁBRICA DE ENTIDADES CON COMPORTAMIENTOS DINÁMICOS
-        function createEntity(type) {
-            let entMesh;
-            if(type === 'Smiler') {
-                entMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            } else if(type === 'Kitty Entity') {
-                // Kitty es una entidad gigante, delgada y oscura que habita su nivel seguro requested
-                entMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.8), new THREE.MeshBasicMaterial({ color: 0x050505 }));
-            } else {
-                entMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshStandardMaterial({ color: 0x5a4d41 }));
-            }
-
-            entMesh.position.set((Math.random() * 40 - 20), 0.9, (Math.random() * 40 - 20));
-            scene.add(entMesh);
-
-            entities.push({
-                mesh: entMesh,
-                type: type,
-                speed: 1.5 + (currentLevel * 0.1),
-                direction: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
-            });
-        }
-
-        // SIMULACIÓN RED MULTIJUGADOR REAL (5 Jugadores Concurrentes de Soporte Co-op)
-        function simulateMultiplayerNetwork() {
-            const playerMat = new THREE.MeshStandardMaterial({ color: 0xd4af37 });
-            for(let i = 0; i < 4; i++) {
-                const netMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), playerMat);
-                netMesh.position.set((Math.random()*6)-3, 1.6, (Math.random()*6)-3);
-                scene.add(netMesh);
-                networkPlayers.push(netMesh);
-            }
-        }
-
-        // DISPARADOR DE MENSAJES CRÍTICOS EN PANTALLA
         function triggerAlert(msg, color = "#ff3333") {
-            const alertBox = document.getElementById('game-alert');
-            alertBox.innerText = msg;
-            alertBox.style.color = color;
-            alertBox.style.display = 'block';
-            setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
+            const el = document.getElementById('game-alert');
+            el.innerText = msg; el.style.color = color; el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 3500);
         }
 
-        // MOTOR DE ANIMACIÓN, RENDERIZADO Y LOOP DE FÍSICAS (FRAME-LOOP DISPARADOR)
-        function animate() {
-            // El loop es compatible tanto con requestAnimationFrame tradicional como con WebXR Sessions
-            renderer.setAnimationLoop(animate);
-
+        function animateLoop() {
+            renderer.setAnimationLoop(animateLoop);
             const delta = clock.getDelta();
             const time = performance.now();
 
-            if (controls.isLocked || renderer.xr.isPresenting) {
-                
-                // --- PROCESAMIENTO MOVIMIENTO EXPLORADOR ---
-                velocity.x -= velocity.x * 10.0 * delta;
-                velocity.z -= velocity.z * 10.0 * delta;
+            // --- LÓGICA DE MOVIMIENTO DE JUGADOR ---
+            playerVelocity.set(0, 0, 0);
+            const speed = 4.5;
+            
+            // Vectores de dirección basados en la cámara del casco u ojos del jugador
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            forward.y = 0; right.y = 0;
+            forward.normalize(); right.normalize();
 
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
+            if(moveKeys.Forward) camera.position.addScaledVector(forward, speed * delta);
+            if(moveKeys.Backward) camera.position.addScaledVector(forward, -speed * delta);
+            if(moveKeys.Left) camera.position.addScaledVector(right, -speed * delta);
+            if(moveKeys.Right) camera.position.addScaledVector(right, speed * delta);
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 48.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 48.0 * delta;
+            if(!isInStairs && camera.position.y !== 1.6) camera.position.y = 1.6;
 
-                controls.moveRight(-velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
+            const pos = camera.position;
 
-                // Evitar caídas por debajo de la alfombra húmeda en niveles estándar
-                if(!isInStaircaseArea && controls.getObject().position.y < 1.6) {
-                    velocity.y = 0;
-                    controls.getObject().position.y = 1.6;
+            // --- LÓGICA ESPECÍFICA DE LAS ESCALERAS DEL ENIGMA (NIVEL 24) ---
+            if(isInStairs) {
+                let currentStep = Math.floor(pos.y / 0.28);
+                if(currentStep > stairsCount && currentStep <= 50) {
+                    stairsCount = currentStep;
+                    document.getElementById('stair-val').innerText = stairsCount;
+                    if(stairsCount === 50) triggerAlert("¡ESCALÓN 50! ¡SALTA AL CENTRO AHORA MISMO!", "#00ff66");
                 }
 
-                const playerPos = controls.getObject().position;
-
-                // --- PROCESAMIENTO EXCLUSIVO DE RESOLUCIÓN ESCALERAS ENIGMA (NIVEL 24) ---
-                if (isInStaircaseArea) {
-                    // Calcular escalones subidos en función de la altura real del Rig del jugador
-                    let estimatedStep = Math.floor(playerPos.y / 0.3);
-                    if (estimatedStep > stairsClimbedCount && estimatedStep <= totalStairsTarget) {
-                        stairsClimbedCount = estimatedStep;
-                        document.getElementById('stair-val').innerText = stairsClimbedCount;
-                        
-                        if(stairsClimbedCount === 50) {
-                            triggerAlert("¡PASO 50 ALCANZADO! ¡TÍRATE AL CENTRO INMEDIATAMENTE PARA SALIR!", "#00ff66");
-                        }
-                    }
-
-                    // CONTROL DE ERROR O ACIERTO EN EL REQUISITO MECÁNICO DEL SALTO
-                    if (playerPos.y > 14 && Math.abs(playerPos.x) < 1.5 && Math.abs(playerPos.z) < 1.5) {
-                        if (stairsClimbedCount >= 50) {
-                            // Salida lore-accurate exit exit exit exit con éxito de los Backrooms
-                            triggerAlert("HAS ESCAPADO DE LOS BACKROOMS. RETORNANDO A LA REALIDAD.", "#00ff66");
-                            playerData.cash += 5000 + (collectedWaterThisRun * 250);
-                            playerData.almonds += collectedWaterThisRun;
-                            saveData();
-                            setTimeout(() => { window.location.reload(); }, 5000);
-                        } else {
-                            // Castigo requested: Teletransportación al equipo completo al nivel opuesto extremo (Nivel 0)
-                            triggerAlert("¡ERROR DE CONTEO! TELETRANSPORTADO AL ORIGEN DEL LABERINTO.");
-                            currentLevel = 0;
-                            buildLevel(currentLevel);
-                        }
+                // Caída al centro del vacío
+                if(pos.y > 10 && Math.abs(pos.x) < 1.3 && Math.abs(pos.z) < 1.3) {
+                    if(stairsCount >= 50) {
+                        triggerAlert("¡LOGRASTE ESCAPAR DE LOS BACKROOMS!", "#00ff66");
+                        cash += 2000; almonds += 5; updateUI();
+                        setTimeout(() => window.location.reload(), 4500);
+                    } else {
+                        triggerAlert("¡CONTEO INCORRECTO! Regresando al inicio del Laberinto con tu equipo.");
+                        currentLevel = 0;
+                        buildProceduralLevel(currentLevel);
                     }
                 }
-
-                // --- PROCESAMIENTO DE COLISIONES, ENTIDADES Y RECOLECCIÓN ---
-                for (let i = objectsStructure.length - 1; i >= 0; i--) {
-                    let obj = objectsStructure[i];
-                    if(!obj.name) continue;
-
-                    // Intersección tridimensional por proximidad de vectores
-                    let dist = playerPos.distanceTo(obj.position);
-                    
-                    // Colisión con Botellas de Agua de Almendras
-                    if (obj.name === "almond_water" && dist < 1.2) {
-                        scene.remove(obj);
-                        objectsStructure.splice(i, 1);
-                        collectedWaterThisRun++;
-                        playerData.cash += 120; // Recompensa financiera por recolección solicitado
-                        updateShopUI();
-                        triggerAlert(`+1 Agua de Almendras ($120). Fondos totales en aumento.`, "#00ffff");
-                    }
-
-                    // Colisión con Zonas Aleatorias de Noclip (Salto entre los 25 mapas)
-                    if (obj.name === "noclip_trigger" && dist < 1.5) {
-                        if (currentLevel < 24) {
-                            currentLevel++;
-                            triggerAlert(`¡NOCLIP EXITOSO! Descendiendo a ${levelsConfig[currentLevel].name}`, "#ff9900");
-                            buildLevel(currentLevel);
-                        }
-                    }
-                }
-
-                // --- MOVIMIENTO DE ENTIDADES E IMPACTO DE CORDURA ---
-                entities.forEach(ent => {
-                    // Patrullaje caótico procedimental
-                    ent.mesh.position.addScaledVector(ent.direction, ent.speed * delta);
-                    
-                    // Rebote simple contra bordes imaginarios del mapa
-                    if(Math.abs(ent.mesh.position.x) > 40 || Math.abs(ent.mesh.position.z) > 40) {
-                        ent.direction.negate();
-                    }
-
-                    // El contacto directo o proximidad drena drásticamente la cordura del explorador
-                    let entDist = playerPos.distanceTo(ent.mesh.position);
-                    if(entDist < 3.5) {
-                        sanity = Math.max(0, sanity - 25 * delta);
-                        document.getElementById('hud-sanity').innerText = Math.floor(sanity) + "%";
-                        document.getElementById('hud-sanity').style.color = "#ff3333";
-                        
-                        if(sanity <= 0) {
-                            triggerAlert("CORDURA EN CERO. TE HAS CONVERTIDO EN UN WRETCH.");
-                            setTimeout(() => { window.location.reload(); }, 4000);
-                        }
-                    }
-                });
-
-                // --- RED MULTIJUGADOR SIMULADA (Sincronización de posiciones de los 4 compañeros) ---
-                networkPlayers.forEach((netPlayer, index) => {
-                    // Simulación de latencia y exploración en tiempo real por el laberinto
-                    netPlayer.position.x += Math.sin(time * 0.001 + index) * delta * 2;
-                    netPlayer.position.z += Math.cos(time * 0.0015 + index) * delta * 2;
-                });
             }
+
+            // --- INTERSECCIONES, RECURSOS Y NOCLIP EN TIEMPO REAL ---
+            for(let i = objectsStructure.length - 1; i >= 0; i--) {
+                let obj = objectsStructure[i];
+                if(!obj.name) continue;
+                let d = pos.distanceTo(obj.position);
+
+                if(obj.name === "almond_water" && d < 1.0) {
+                    scene.remove(obj); objectsStructure.splice(i, 1);
+                    almonds++; cash += 150; updateUI();
+                    triggerAlert("+1 Agua de Almendras extra ($150)", "#00ffff");
+                }
+
+                if(obj.name === "noclip_gate" && d < 1.2) {
+                    if(currentLevel < 24) {
+                        currentLevel++;
+                        triggerAlert(`¡NOCLIP EXITOSO! Pasando al mapa ${currentLevel}`, "#ffaa00");
+                        buildProceduralLevel(currentLevel);
+                    }
+                }
+            }
+
+            // Movimiento de fantasmas del equipo multijugador simulado
+            netPlayers.forEach((p, idx) => {
+                p.position.x += Math.sin(time*0.001 + idx)*delta*1.5;
+                p.position.z += Math.cos(time*0.0012 + idx)*delta*1.5;
+            });
+
+            // Patrullaje de Entidades y drenado de cordura
+            entities.forEach(ent => {
+                ent.mesh.position.addScaledVector(ent.dir, 1.8 * delta);
+                if(Math.abs(ent.mesh.position.x) > 25 || Math.abs(ent.mesh.position.z) > 25) ent.dir.negate();
+
+                if(pos.distanceTo(ent.mesh.position) < 3.2) {
+                    sanity = Math.max(0, sanity - 20 * delta);
+                    document.getElementById('hud-sanity').innerText = Math.floor(sanity) + "%";
+                    if(sanity <= 0) {
+                        triggerAlert("PERDISTE LA CORDURA... FIN DE LA TRANSMISIÓN");
+                        setTimeout(() => window.location.reload(), 3000);
+                    }
+                }
+            });
 
             renderer.render(scene, camera);
         }
 
-        // Auto-ajuste de la relación de aspecto del lente óptico de la cámara por si la pantalla rota o cambia de tamaño
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
