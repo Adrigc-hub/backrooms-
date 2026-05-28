@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>The Backrooms: Peer Network AAA</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        #game-canvas { width: 100vw; height: 100vh; display: block; }
+        #hud {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 25px; box-sizing: border-box;
+            color: #d1c294; text-shadow: 2px 2px 3px #000;
+        }
+        .hud-panel {
+            background: rgba(15, 15, 10, 0.85); border: 2px solid #6e5d3f;
+            padding: 12px; border-radius: 4px; pointer-events: auto;
+        }
+        .bar { width: 180px; height: 10px; background: #222; border: 1px solid #6e5d3f; margin-top: 4px; }
+        .bar-fill { height: 100%; width: 100%; transition: width 0.1s; }
+        #stamina-fill { background: #3adeb4; }
+        #sanity-fill { background: #de3a3a; }
+        #battery-fill { background: #ded03a; }
+        button {
+            background: #6e5d3f; color: #fff; border: 1px solid #fff;
+            padding: 6px 12px; cursor: pointer; font-family: monospace; font-weight: bold;
+        }
+        button:hover { background: #947e58; }
+        #vr-btn-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 999; }
+        .hidden { display: none !important; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud">
+        <div style="display: flex; justify-content: space-between; width: 100%;">
+            <div class="hud-panel">
+                <div>ID DE TU SALA: <span id="lobby-id" style="color:#6be0ff; font-weight:bold;">Generando...</span></div>
+                <div>NIVEL ACTUAL: <span id="lbl-level">0</span></div>
+                <input type="text" id="connect-id" placeholder="ID de amigo" style="width:120px; margin-top:5px;">
+                <button onclick="game.connectToFriend()">Conectar</button>
+            </div>
+            <div class="hud-panel">
+                <div>ESTAMINA:<div class="bar"><div id="stamina-fill" class="bar-fill"></div></div></div>
+                <div>CORDURA:<div class="bar"><div id="sanity-fill" class="bar-fill"></div></div></div>
+                <div>LINTERNA:<div class="bar"><div id="battery-fill" class="bar-fill"></div></div></div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+            <div class="hud-panel">
+                <div>MONEDAS DE ALMENDRA: $<span id="lbl-money">0</span></div>
+                <div>MISION: <span id="lbl-mission" style="color:#fff;">Encuentra una pared inestable para hacer NoClip.</span></div>
+            </div>
+            <div class="hud-panel">
+                <b>TIENDA RADICAL</b><br>
+                <button onclick="game.buyItem('bateria')">Batería ($15)</button>
+                <button onclick="game.buyItem('agua')">Agua ($25)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="vr-btn-container"></div>
+
+    <script>
+        class P2PBackroomsEngine {
+            constructor() {
+                this.canvas = document.getElementById('game-canvas');
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+                
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.xr.enabled = true;
+                this.renderer.shadowMap.enabled = true;
+
+                this.clock = new THREE.Clock();
+                this.stats = { level: 0, money: 0, sanity: 100, stamina: 100, battery: 100, isCrouching: false, isRunning: false };
+                this.input = { forward: false, backward: false, left: false, right: false, shift: false };
+                
+                this.chunks = new Map();
+                this.peerConnections = [];
+                this.remotePlayersMeshes = {};
+
+                this.initGraphics();
+                this.initNetworkP2P();
+                this.initControls();
+                this.loadLevel(0);
+                
+                this.renderer.setAnimationLoop(() => this.update());
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            initGraphics() {
+                this.scene.background = new THREE.Color(0x14140f);
+                this.scene.fog = new THREE.FogExp2(0x14140f, 0.06);
+
+                let ambient = new THREE.AmbientLight(0xffffff, 0.25);
+                this.scene.add(ambient);
+
+                this.flashlight = new THREE.SpotLight(0xfff3cd, 3, 30, Math.PI / 5, 0.5, 1);
+                this.flashlight.castShadow = true;
+                this.camera.add(this.flashlight);
+                this.flashlight.position.set(0,0,0);
+                this.flashlight.target.position.set(0, 0, -1);
+                this.camera.add(this.flashlight.target);
+                this.scene.add(this.camera);
+
+                document.getElementById('vr-btn-container').appendChild(THREE.VRButton.createButton(this.renderer));
+
+                // Crear texturas procedurales ligeras
+                let canvas = document.createElement('canvas');
+                canvas.width = 128; canvas.height = 128;
+                let ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#bfae7e'; ctx.fillRect(0,0,128,128);
+                ctx.fillStyle = '#aba274';
+                for(let i=0; i<800; i++) ctx.fillRect(Math.random()*128, Math.random()*128, 2, 2);
+                
+                this.wallTex = new THREE.CanvasTexture(canvas);
+                this.wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.8 });
+            }
+
+            initNetworkP2P() {
+                // Conexión directa entre navegadores usando PeerJS (Servidor de paso libre)
+                this.peer = new Peer();
+                
+                this.peer.on('open', (id) => {
+                    document.getElementById('lobby-id').innerText = id;
+                });
+
+                this.peer.on('connection', (conn) => {
+                    this.setupConnection(conn);
+                });
+            }
+
+            connectToFriend() {
+                let targetId = document.getElementById('connect-id').value;
+                if(targetId) {
+                    let conn = this.peer.connect(targetId);
+                    this.setupConnection(conn);
+                }
+            }
+
+            setupConnection(conn) {
+                conn.on('open', () => {
+                    this.peerConnections.push(conn);
+                    // Crear avatar visual para el amigo
+                    let geom = new THREE.CylinderGeometry(0.3, 0.3, 1.6);
+                    let mat = new THREE.MeshStandardMaterial({ color: 0xffbb00 });
+                    let mesh = new THREE.Mesh(geom, mat);
+                    this.scene.add(mesh);
+                    this.remotePlayersMeshes[conn.peer] = mesh;
+                });
+
+                conn.on('data', (data) => {
+                    if(data.type === 'move' && this.remotePlayersMeshes[conn.peer]) {
+                        this.remotePlayersMeshes[conn.peer].position.set(data.x, data.y - 0.8, data.z);
+                    }
+                });
+            }
+
+            initControls() {
+                this.camera.position.set(2, 1.7, 2);
+
+                window.addEventListener('keydown', (e) => {
+                    if(e.code === 'KeyW') this.input.forward = true;
+                    if(e.code === 'KeyS') this.input.backward = true;
+                    if(e.code === 'KeyA') this.input.left = true;
+                    if(e.code === 'KeyD') this.input.right = true;
+                    if(e.code === 'ShiftLeft') this.input.shift = true;
+                    if(e.code === 'KeyC') this.toggleCrouch(true);
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    if(e.code === 'KeyW') this.input.forward = false;
+                    if(e.code === 'KeyS') this.input.backward = false;
+                    if(e.code === 'KeyA') this.input.left = false;
+                    if(e.code === 'KeyD') this.input.right = false;
+                    if(e.code === 'ShiftLeft') this.input.shift = false;
+                    if(e.code === 'KeyC') this.toggleCrouch(false);
+                });
+
+                this.canvas.addEventListener('click', () => {
+                    if(!this.renderer.xr.isPresenting) this.canvas.requestPointerLock();
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if(document.pointerLockElement === this.canvas) {
+                        this.camera.rotation.y -= e.movementX * 0.0025;
+                        this.camera.rotation.x -= e.movementY * 0.0025;
+                        this.camera.rotation.x = Math.max(-Math.PI/2.3, Math.min(Math.PI/2.3, this.camera.rotation.x));
+                    }
+                });
+            }
+
+            toggleCrouch(active) {
+                this.stats.isCrouching = active;
+            }
+
+            loadLevel(num) {
+                this.stats.level = num;
+                document.getElementById('lbl-level').innerText = num;
+                this.chunks.forEach(c => this.scene.remove(c));
+                this.chunks.clear();
+                this.generateProceduralSegment(0, 0);
+            }
+
+            generateProceduralSegment(cx, cz) {
+                let group = new THREE.Group();
+                let wallGeom = new THREE.BoxGeometry(4, 4, 4);
+                
+                for(let i=0; i<10; i++) {
+                    for(let j=0; j<10; j++) {
+                        if(Math.random() < 0.25 && (i>1 || j>1)) {
+                            let wall = new THREE.Mesh(wallGeom, this.wallMat);
+                            wall.position.set(i*4 - 20, 2, j*4 - 20);
+                            group.add(wall);
+                        }
+                    }
+                }
+                this.scene.add(group);
+                this.chunks.set(`${cx},${cz}`, group);
+            }
+
+            buyItem(item) {
+                if(item === 'bateria' && this.stats.money >= 15) { this.stats.money -= 15; this.stats.battery = 100; }
+                if(item === 'agua' && this.stats.money >= 25) { this.stats.money -= 25; this.stats.sanity = 100; }
+                document.getElementById('lbl-money').innerText = this.stats.money;
+            }
+
+            update() {
+                let delta = this.clock.getDelta();
+                let speed = this.input.shift && this.stats.stamina > 10 ? 0.12 : 0.06;
+                if(this.stats.isCrouching) speed = 0.03;
+
+                // Control de Estamina
+                if(this.input.shift && (this.input.forward || this.input.left)) {
+                    this.stats.stamina = Math.max(0, this.stats.stamina - delta * 30);
+                } else {
+                    this.stats.stamina = Math.min(100, this.stats.stamina + delta * 15);
+                }
+
+                // Linterna y Cordura
+                this.stats.battery = Math.max(0, this.stats.battery - delta * 1.5);
+                this.flashlight.intensity = (this.stats.battery / 100) * 3;
+                this.stats.sanity = Math.max(0, this.stats.sanity - delta * (this.stats.battery <= 0 ? 3 : 0.2));
+
+                // Movimiento espacial
+                let dir = new THREE.Vector3();
+                this.camera.getWorldDirection(dir);
+                dir.y = 0; dir.normalize();
+                let side = new THREE.Vector3(-dir.z, 0, dir.x);
+
+                if(this.input.forward) this.camera.position.addScaledVector(dir, speed);
+                if(this.input.backward) this.camera.position.addScaledVector(dir, -speed);
+                if(this.input.left) this.camera.position.addScaledVector(side, -speed);
+                if(this.input.right) this.camera.position.addScaledVector(side, speed);
+
+                // Altura según estado
+                let targetHeight = this.stats.isCrouching ? 0.9 : 1.7;
+                this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, targetHeight, 0.1);
+
+                // Mecánica NoClip fortuita
+                if(Math.random() < 0.0003 && (this.input.forward)) {
+                    this.stats.money += 100;
+                    document.getElementById('lbl-money').innerText = this.stats.money;
+                    this.loadLevel(this.stats.level + 1);
+                }
+
+                // Sincronizar coordenadas por la red P2P
+                this.peerConnections.forEach(conn => {
+                    conn.send({
+                        type: 'move',
+                        x: this.camera.position.x,
+                        y: this.camera.position.y,
+                        z: this.camera.position.z
+                    });
+                });
+
+                // Actualizar barras HUD
+                document.getElementById('stamina-fill').style.width = `${this.stats.stamina}%`;
+                document.getElementById('sanity-fill').style.width = `${this.stats.sanity}%`;
+                document.getElementById('battery-fill').style.width = `${this.stats.battery}%`;
+
+                if(this.stats.sanity <= 0) {
+                    alert("Perdiste la cordura...");
+                    this.stats.sanity = 100;
+                    this.loadLevel(0);
+                }
+
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            resize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        let game;
+        window.addEventListener('DOMContentLoaded', () => { game = new P2PBackroomsEngine(); });
+    </script>
+</body>
+</html>
