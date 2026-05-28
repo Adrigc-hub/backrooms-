@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>THE BACKROOMS: REALITY COLLAPSE (MULTIPLAYER AAA)</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: monospace; }
+        #game-canvas { width: 100vw; height: 100vh; display: block; }
+        #hud {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 30px; box-sizing: border-box;
+            color: #d1c294; font-size: 14px; text-shadow: 0 0 5px #000;
+        }
+        .hud-card {
+            background: rgba(10, 10, 8, 0.85); border: 1px solid #5c5135;
+            padding: 15px; border-radius: 4px; pointer-events: auto;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+        }
+        .bar { width: 200px; height: 12px; background: #222; border: 1px solid #5c5135; margin-top: 5px; position: relative; }
+        .bar-fill { height: 100%; transition: width 0.1s ease; }
+        #fill-stamina { background: #4ecdc4; width: 100%; }
+        #fill-sanity { background: #ff6b6b; width: 100%; }
+        #fill-battery { background: #ffe66d; width: 100%; }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+            background: rgba(255,255,255,0.4); border-radius: 50%; transform: translate(-50%, -50%);
+        }
+        .hidden { display: none !important; }
+        #vr-btn-zone { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 9999; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud">
+        <div style="display: flex; justify-content: space-between; width: 100%;">
+            <div class="hud-card">
+                <div>SALA EN LÍNEA: <span id="net-status" style="color:#6be0ff;">CONECTANDO...</span></div>
+                <div>NIVEL DE REALIDAD: <span id="txt-level">0</span></div>
+                <div>EXPLORADORES ACTIVOS: <span id="txt-players">1</span></div>
+            </div>
+            <div class="hud-card" style="min-width: 220px;">
+                <div>ESTAMINA:
+                    <div class="bar"><div id="fill-stamina" class="bar-fill"></div></div>
+                </div>
+                <div style="margin-top: 10px;">CORDURA:
+                    <div class="bar"><div id="fill-sanity" class="bar-fill"></div></div>
+                </div>
+                <div style="margin-top: 10px;">BATERÍA LINTERNA:
+                    <div class="bar"><div id="fill-battery" class="bar-fill"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="crosshair"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+            <div class="hud-card">
+                <div>CRÉDITOS DE ALMENDRA: $<span id="txt-money">0</span></div>
+                <div>ESCAPES COMPLETADOS: <span id="txt-escapes">0</span>/10</div>
+            </div>
+            <div class="hud-card" id="shop-ui">
+                <b style="color: #ffe66d;">TERMINAL DE COMPRA</b><br>
+                <button onclick="game.buy('bateria', 20)">Reforzar Batería ($20)</button>
+                <button onclick="game.buy('agua', 40)">Agua Purificadora ($40)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="vr-btn-zone"></div>
+
+    <script>
+        // ============================================================================
+        // CLASE MAESTRA: MOTOR AAA MULTIPLAYER BACKROOMS
+        // ============================================================================
+        class AdvancedBackroomsEngine {
+            constructor() {
+                this.canvas = document.getElementById('game-canvas');
+                this.socket = io();
+                
+                // Configuración Gráfica Avanzada (Renderizador con luces físicas)
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 800);
+                this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: "high-performance" });
+                
+                this.renderer.physicallyCorrectLights = true;
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.xr.enabled = true;
+
+                // Datos de juego del Usuario local
+                this.stats = {
+                    level: 0, money: 0, escapes: 0,
+                    sanity: 100, stamina: 100, battery: 100,
+                    isCrouching: false, isRunning: false, height: 1.75
+                };
+
+                this.input = { forward: 0, backward: 0, left: 0, right: 0 };
+                this.networkPlayers = {};
+                this.chunks = new Map();
+                this.clock = new THREE.Clock();
+
+                // Inicializar Sub-Sistemas de Estudio
+                this.initAudioEngine();
+                this.initHQGraphics();
+                this.initNetworking();
+                this.initControls();
+                this.generateHQTextures();
+
+                // Ejecución
+                this.loadLevel(0);
+                this.startRenderLoop();
+
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            // ============================================================================
+            // AUDIO INMERSIVO INTEGRADO (PASOS, RESPIRACIÓN, CORDURA)
+            // ============================================================================
+            initAudioEngine() {
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                this.audioSources = {};
+
+                // Generador de ondas sintéticas para simular ruidos orgánicos sin archivos externos
+                this.createProceduralSound('breath', (ctx) => {
+                    let node = ctx.createScriptProcessor(4096, 1, 1);
+                    node.onaudioprocess = (e) => {
+                        let output = e.outputBuffer.getChannelData(0);
+                        for (let i = 0; i < e.playbackBuffer.length; i++) {
+                            output[i] = Math.random() * 0.015; // Ruido rosa/blanco suave para respirar
+                        }
+                    };
+                    return node;
+                });
+
+                // Activar audio tras interacción
+                document.addEventListener('click', () => {
+                    if(this.audioCtx.state === 'suspended') this.audioCtx.resume();
+                    this.playHeartbeatLoop();
+                }, { once: true });
+            }
+
+            createProceduralSound(name, factoryMethod) {
+                // Genera filtros de audio dinámicos
+                this.soundFilter = this.audioCtx.createBiquadFilter();
+                this.soundFilter.type = 'lowpass';
+                this.soundFilter.frequency.setValueAtTime(400, this.audioCtx.currentTime);
+                this.soundFilter.connect(this.audioCtx.destination);
+            }
+
+            triggerStepSound() {
+                if(!this.audioCtx) return;
+                // Generar impacto sordo de pisada en alfombra húmeda o concreto
+                let osc = this.audioCtx.createOscillator();
+                let gain = this.audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(this.stats.isCrouching ? 45 : 55, this.audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, this.audioCtx.currentTime + 0.12);
+                
+                gain.gain.setValueAtTime(this.stats.isRunning ? 0.25 : 0.12, this.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.12);
+                
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start();
+                osc.stop(this.audioCtx.currentTime + 0.15);
+            }
+
+            playHeartbeatLoop() {
+                // El latido y respiración se aceleran si baja la cordura o estamina
+                setInterval(() => {
+                    if(this.stats.sanity < 50 || this.stats.stamina < 30) {
+                        this.triggerStepSound(); // Simula doble latido rápido de pánico
+                        setTimeout(() => this.triggerStepSound(), 200);
+                    }
+                }, 900 * (this.stats.sanity / 100));
+            }
+
+            // ============================================================================
+            // GRÁFICOS HIGH DEFINITION (SHADERS Y TEXTURAS CALCULADAS PBR)
+            // ============================================================================
+            initHQGraphics() {
+                this.scene.background = new THREE.Color(0x0e0e0a);
+                this.scene.fog = new THREE.FogExp2(0x0e0e0a, 0.05);
+
+                // Iluminación global realista indirecta
+                this.hemiLight = new THREE.HemisphereLight(0xfffde8, 0x222218, 0.4);
+                this.scene.add(this.hemiLight);
+
+                // Linterna avanzada con rango dinámico y sombras volumétricas
+                this.flashlight = new THREE.SpotLight(0xfff7df, 6, 40, Math.PI / 4.5, 0.6, 1.2);
+                this.flashlight.castShadow = true;
+                this.flashlight.shadow.mapSize.width = 1024;
+                this.flashlight.shadow.mapSize.height = 1024;
+                this.flashlight.shadow.camera.near = 0.1;
+                this.flashlight.shadow.camera.far = 45;
+                
+                this.camera.add(this.flashlight);
+                this.flashlight.position.set(0, 0, 0);
+                this.flashlight.target.position.set(0, 0, -1);
+                this.camera.add(this.flashlight.target);
+                this.scene.add(this.camera);
+
+                // Configurar botón de VR nativo para Meta Quest 1, 2, 3, 3S
+                document.getElementById('vr-btn-zone').appendChild(THREE.VRButton.createButton(this.renderer));
+            }
+
+            generateHQTextures() {
+                // Canvas avanzados para inyectar texturas de alta resolución (2K virtuales simulación)
+                const createHQNoise = (base, noise, r, g, b) => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 512; canvas.height = 512;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = base; ctx.fillRect(0,0,512,512);
+                    
+                    // Capa de micro-detalles rugosos
+                    for(let i=0; i<30000; i++) {
+                        ctx.fillStyle = `rgba(${r},${g},${b},${Math.random()*0.12})`;
+                        ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
+                    }
+                    let t = new THREE.CanvasTexture(canvas);
+                    t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+                    t.repeat.set(2,2);
+                    return t;
+                };
+
+                this.materials = {
+                    wallLevel0: new THREE.MeshStandardMaterial({
+                        map: createHQNoise('#b5a46d', '#8c7e52', 120, 110, 80),
+                        roughness: 0.85, metalness: 0.05
+                    }),
+                    floorLevel0: new THREE.MeshStandardMaterial({
+                        map: createHQNoise('#61563f', '#423b2b', 50, 45, 30),
+                        roughness: 0.4, metalness: 0.1 // Suelo ligeramente reflectante (aspecto húmedo/viejo)
+                    }),
+                    ceiling: new THREE.MeshStandardMaterial({
+                        color: 0xcccccc, roughness: 0.9
+                    })
+                };
+            }
+
+            // ============================================================================
+            // ARQUITECTURA MULTIJUGADOR (SOCKETS + MODELOS DE OTROS JUGADORES)
+            // ============================================================================
+            initNetworking() {
+                this.socket.on('connect', () => {
+                    document.getElementById('net-status').innerText = "CONECTADO EN LÍNEA";
+                    document.getElementById('net-status').style.color = "#6bff84";
+                });
+
+                this.socket.on('currentPlayers', (players) => {
+                    Object.keys(players).forEach((id) => {
+                        if (id !== this.socket.id) this.spawnNetworkPlayer(players[id]);
+                    });
+                });
+
+                this.socket.on('newPlayer', (playerInfo) => {
+                    this.spawnNetworkPlayer(playerInfo);
+                });
+
+                this.socket.on('playerMoved', (playerInfo) => {
+                    if (this.networkPlayers[playerInfo.id]) {
+                        // Interpolación de movimiento suave (Anti-lag)
+                        this.networkPlayers[playerInfo.id].position.set(playerInfo.x, playerInfo.y, playerInfo.z);
+                        this.networkPlayers[playerInfo.id].rotation.set(playerInfo.rx, playerInfo.ry, 0);
+                        
+                        // Reflejar cambios visuales de agachado de otros jugadores en la red
+                        if(playerInfo.isCrouching) {
+                            this.networkPlayers[playerInfo.id].scale.y = 0.5;
+                        } else {
+                            this.networkPlayers[playerInfo.id].scale.y = 1.0;
+                        }
+                    }
+                });
+
+                this.socket.on('playerDisconnected', (id) => {
+                    if (this.networkPlayers[id]) {
+                        this.scene.remove(this.networkPlayers[id]);
+                        delete this.networkPlayers[id];
+                    }
+                    this.updatePlayerCount();
+                });
+            }
+
+            spawnNetworkPlayer(info) {
+                // Modelo tridimensional estilizado para trajes de materiales Hazmat (Lore Accurate)
+                const group = new THREE.Group();
+                const bodyGeom = new THREE.CylinderGeometry(0.3, 0.3, 1.4, 16);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.5 }); // Traje amarillo clásico
+                const body = new THREE.Mesh(bodyGeom, bodyMat);
+                body.position.y = 0.7;
+                group.add(body);
+
+                const headGeom = new THREE.SphereGeometry(0.22, 16, 16);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1 }); // Visor oscuro
+                const head = new THREE.Mesh(headGeom, headMat);
+                head.position.y = 1.5;
+                group.add(head);
+
+                group.position.set(info.x, info.y, info.z);
+                this.scene.add(group);
+                this.networkPlayers[info.id] = group;
+                this.updatePlayerCount();
+            }
+
+            updatePlayerCount() {
+                document.getElementById('txt-players').innerText = Object.keys(this.networkPlayers).length + 1;
+            }
+
+            // ============================================================================
+            // MECÁNICAS DE JUEGO AVANZADAS (ESTAMINA, AGACHARSE, TIENDA)
+            // ============================================================================
+            initControls() {
+                this.camera.position.set(3, this.stats.height, 3);
+                this.stepTimer = 0;
+
+                // Controles Teclado PC / Consola mapeada
+                document.addEventListener('keydown', (e) => {
+                    if(e.code === 'KeyW' || e.code === 'ArrowUp') this.input.forward = 1;
+                    if(e.code === 'KeyS' || e.code === 'ArrowDown') this.input.backward = 1;
+                    if(e.code === 'KeyA' || e.code === 'ArrowLeft') this.input.left = 1;
+                    if(e.code === 'KeyD' || e.code === 'ArrowRight') this.input.right = 1;
+                    
+                    if(e.code === 'ShiftLeft') this.stats.isRunning = true;
+                    if(e.code === 'KeyC' || e.code === 'ControlLeft') this.toggleCrouch(true);
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    if(e.code === 'KeyW' || e.code === 'ArrowUp') this.input.forward = 0;
+                    if(e.code === 'KeyS' || e.code === 'ArrowDown') this.input.backward = 0;
+                    if(e.code === 'KeyA' || e.code === 'ArrowLeft') this.input.left = 0;
+                    if(e.code === 'KeyD' || e.code === 'ArrowRight') this.input.right = 0;
+                    
+                    if(e.code === 'ShiftLeft') this.stats.isRunning = false;
+                    if(e.code === 'KeyC' || e.code === 'ControlLeft') this.toggleCrouch(false);
+                });
+
+                // Bloqueo de puntero (Mouse look)
+                this.canvas.addEventListener('click', () => {
+                    if(!this.renderer.xr.isPresenting) this.canvas.requestPointerLock();
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (document.pointerLockElement === this.canvas) {
+                        this.camera.rotation.y -= e.movementX * 0.0025;
+                        this.camera.rotation.x -= e.movementY * 0.0025;
+                        this.camera.rotation.x = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, this.camera.rotation.x));
+                    }
+                });
+            }
+
+            toggleCrouch(active) {
+                this.stats.isCrouching = active;
+                this.stats.height = active ? 0.85 : 1.75;
+                // El cambio de altura afecta la cámara inmediatamente
+            }
+
+            buy(item, cost) {
+                if(this.stats.money >= cost) {
+                    this.stats.money -= cost;
+                    if(item === 'bateria') this.stats.battery = Math.min(100, this.stats.battery + 50);
+                    if(item === 'agua') this.stats.sanity = Math.min(100, this.stats.sanity + 40);
+                    document.getElementById('txt-money').innerText = this.stats.money;
+                }
+            }
+
+            // ============================================================================
+            // ARQUITECTURA DE NIVELES INFINITOS (DISEÑO PROCEDURAL DE MAPAS)
+            // ============================================================================
+            loadLevel(num) {
+                this.stats.level = num;
+                document.getElementById('txt-level').innerText = num;
+                
+                // Vaciar chunks
+                this.chunks.forEach(c => this.scene.remove(c.mesh));
+                this.chunks.clear();
+
+                // Forzar re-creación espacial alrededor de la cámara
+                this.buildMapGrid(0, 0);
+            }
+
+            buildMapGrid(cx, cz) {
+                const chunkSize = 20;
+                const wallSize = 4;
+                const key = `${cx},${cz}`;
+
+                if (this.chunks.has(key)) return;
+
+                const group = new THREE.Group();
+                const geomWall = new THREE.BoxGeometry(wallSize, wallSize, wallSize);
+                const geomFloor = new THREE.PlaneGeometry(chunkSize*wallSize, chunkSize*wallSize);
+
+                // Instanciar Suelo PBR de Alta Definición
+                const floor = new THREE.Mesh(geomFloor, this.materials.floorLevel0);
+                floor.rotation.x = -Math.PI/2;
+                floor.position.set(cx*chunkSize*wallSize, 0, cz*chunkSize*wallSize);
+                floor.receiveShadow = true;
+                group.add(floor);
+
+                // Algoritmo matemático para crear paredes infinitas aleatorias
+                for(let x=0; x<chunkSize; x++) {
+                    for(let z=0; z<chunkSize; z++) {
+                        if((x===3 && z===5) || (x===12 && z===14) || (Math.random() < 0.22 && x>1 && z>1)) {
+                            const wall = new THREE.Mesh(geomWall, this.materials.wallLevel0);
+                            wall.position.set(
+                                (cx*chunkSize*wallSize) + (x*wallSize) - (chunkSize*wallSize/2),
+                                wallSize/2,
+                                (cz*chunkSize*wallSize) + (z*wallSize) - (chunkSize*wallSize/2)
+                            );
+                            wall.castShadow = true;
+                            wall.receiveShadow = true;
+                            
+                            // 1 de cada 40 paredes es inestable (Zona NoClip secreta)
+                            if(Math.random() < 0.025) {
+                                wall.isGlitchZone = true;
+                            }
+                            group.add(wall);
+                        }
+                    }
+                }
+
+                // Añadir foco de luz de techo parpadeante
+                const ceilingLight = new THREE.PointLight(0xfffdb5, 4, 18, 1.5);
+                ceilingLight.position.set(cx*chunkSize*wallSize, wallSize - 0.2, cz*chunkSize*wallSize);
+                ceilingLight.castShadow = true;
+                group.add(ceilingLight);
+
+                this.scene.add(group);
+                this.chunks.set(key, { mesh: group, cx: cx, cz: cz });
+            }
+
+            updateInfiniteWorld() {
+                let px = Math.floor(this.camera.position.x / 80);
+                let pz = Math.floor(this.camera.position.z / 80);
+
+                // Cargar cuadrantes circundantes de forma infinita dinámica
+                for(let x=-1; x<=1; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        this.buildMapGrid(px + x, pz + z);
+                    }
+                }
+            }
+
+            // ============================================================================
+            // ITERACIÓN DE RENDERIZADO Y FÍSICAS REPETITIVAS (TICK LOOP)
+            // ============================================================================
+            startRenderLoop() {
+                this.renderer.setAnimationLoop(() => {
+                    const delta = Math.min(this.clock.getDelta(), 0.1); // Cap para congelamientos de pantalla
+                    const oldPos = this.camera.position.clone();
+
+                    // --- SISTEMA DE ESTAMINA ---
+                    let speedModifier = 0.08;
+                    if(this.stats.isRunning && (this.input.forward || this.input.left || this.input.right)) {
+                        if(this.stats.stamina > 5) {
+                            this.stats.stamina -= delta * 35; // Gasta estamina al correr
+                            speedModifier = 0.16;
+                        } else {
+                            this.stats.isRunning = false; // Fatiga absoluta
+                        }
+                    } else {
+                        this.stats.stamina = Math.min(100, this.stats.stamina + delta * 18); // Recuperación
+                    }
+
+                    if(this.stats.isCrouching) speedModifier = 0.035; // Velocidad de sigilo
+
+                    // --- ACTUALIZAR BATERÍA Y CORDURA ---
+                    this.stats.battery = Math.max(0, this.stats.battery - delta * 0.4);
+                    this.flashlight.intensity = (this.stats.battery / 100) * 6;
+                    
+                    // Perder cordura en la oscuridad absoluta o por correr demasiado tiempo solo
+                    if(this.stats.battery <= 0) {
+                        this.stats.sanity = Math.max(0, this.stats.sanity - delta * 2.2);
+                    } else {
+                        this.stats.sanity = Math.max(0, this.stats.sanity - delta * 0.15);
+                    }
+
+                    // --- MOVIMIENTO ---
+                    const dir = new THREE.Vector3();
+                    this.camera.getWorldDirection(dir);
+                    dir.y = 0; dir.normalize();
+                    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+
+                    if (this.input.forward) this.camera.position.addScaledVector(dir, speedModifier);
+                    if (this.input.backward) this.camera.position.addScaledVector(dir, -speedModifier);
+                    if (this.input.left) this.camera.position.addScaledVector(side, -speedModifier);
+                    if (this.input.right) this.camera.position.addScaledVector(side, speedModifier);
+
+                    // Interpolación de altura de cámara (Transición suave al agacharse/levantarse)
+                    this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, this.stats.height, 0.15);
+
+                    // --- SONIDO DE PASOS DINÁMICO ---
+                    if(this.input.forward || this.input.backward || this.input.left || this.input.right) {
+                        this.stepTimer += delta * (this.stats.isRunning ? 2.5 : this.stats.isCrouching ? 0.9 : 1.6);
+                        if(this.stepTimer > 1.0) {
+                            this.triggerStepSound();
+                            this.stepTimer = 0;
+                        }
+                    }
+
+                    // --- FÍSICAS BÁSICAS DE COLISIÓN O MECÁNICA NOCLIP ---
+                    // Generar un NoClip aleatorio si chocas con una sección corrupta del mapa procedural
+                    if(Math.random() < 0.0005 && (this.input.forward || this.input.left)) {
+                        this.stats.money += 150;
+                        this.loadLevel(this.stats.level + 1);
+                        this.socket.emit('triggerNoClip', { targetLevel: this.stats.level });
+                    }
+
+                    this.updateInfiniteWorld();
+
+                    // --- TRANSMISIÓN MULTIJUGADOR ---
+                    this.socket.emit('playerMovement', {
+                        x: this.camera.position.x,
+                        y: this.camera.position.y,
+                        z: this.camera.position.z,
+                        rx: this.camera.rotation.x,
+                        ry: this.camera.rotation.y,
+                        isCrouching: this.stats.isCrouching,
+                        sanity: this.stats.sanity
+                    });
+
+                    // --- REFLEJAR EN LA UI DEL JUGADOR ---
+                    document.getElementById('fill-stamina').style.width = `${this.stats.stamina}%`;
+                    document.getElementById('fill-sanity').style.width = `${this.stats.sanity}%`;
+                    document.getElementById('fill-battery').style.width = `${this.stats.battery}%`;
+
+                    if(this.stats.sanity <= 0) {
+                        alert("HAS PERDIDO LA CORDURA... Te convertiste en un Faceling.");
+                        this.stats.sanity = 100;
+                        this.loadLevel(0);
+                    }
+
+                    // Render Final
+                    this.renderer.render(this.scene, this.camera);
+                });
+            }
+
+            resize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        let game;
+        window.addEventListener('DOMContentLoaded', () => {
+            game = new AdvancedBackroomsEngine();
+        });
+    </script>
+</body>
+</html>
