@@ -5,48 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Backrooms: Pure WebXR Infinite</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; font-family: 'Courier New', monospace; color: #dbdbdb; }
-        canvas { width: 100vw; height: 100vh; display: block; image-rendering: pixelated; } /* Gráficos retro pixelados */
-        #mainMenu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(15, 15, 10, 0.95); padding: 30px; border: 4px dashed #8a731e; z-index: 10; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
-        h1 { color: #ceb245; font-size: 28px; margin-bottom: 20px; text-shadow: 2px 2px #000; }
-        .btn { background: #222; color: #ceb245; border: 2px solid #ceb245; padding: 12px 24px; font-size: 16px; cursor: pointer; font-weight: bold; margin: 10px; display: inline-block; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; font-family: 'Courier New', monospace; color: #dbdbdb; user-select: none; }
+        canvas { width: 100vw; height: 100vh; display: block; }
+        #mainMenu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(20, 20, 15, 0.95); padding: 30px; border: 4px dashed #8a731e; z-index: 10; box-shadow: 0 0 20px rgba(0,0,0,0.8); max-width: 450px; }
+        h1 { color: #ceb245; font-size: 24px; margin-bottom: 20px; text-shadow: 2px 2px #000; }
+        .btn { background: #222; color: #ceb245; border: 2px solid #ceb245; padding: 12px 24px; font-size: 14px; cursor: pointer; font-weight: bold; margin: 10px 5px; display: inline-block; width: 80%; }
         .btn:hover { background: #ceb245; color: #111; }
-        #hud { position: absolute; top: 15px; left: 15px; z-index: 5; font-size: 16px; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.5); padding: 10px; border-left: 3px solid #ceb245; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.4); transform: translate(-50%, -50%); pointer-events: none; z-index: 4; border-radius: 50%; }
+        #hud { position: absolute; top: 15px; left: 15px; z-index: 5; font-size: 14px; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.7); padding: 10px; border-left: 3px solid #ceb245; max-width: 300px; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.5); transform: translate(-50%, -50%); pointer-events: none; z-index: 4; border-radius: 50%; }
+        .lore-list { text-align: left; font-size: 11px; color: #aaa; margin-top: 15px; height: 80px; overflow-y: scroll; border: 1px solid #444; padding: 5px; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
     <div id="hud">
-        <div>Nivel actual: <span id="lblLevel">0</span></div>
-        <div>Dinero: $<span id="lblMoney">0</span></div>
-        <div>Misión: <span id="lblMission">Encuentra una zona inestable para hacer No-Clip</span></div>
+        <div><b>Nivel actual:</b> <span id="lblLevel">0</span></div>
+        <div><b>Dinero:</b> $<span id="lblMoney">0</span></div>
+        <div><b>Misión:</b> <span id="lblMission">Busca una pared húmeda/parpadeante para hacer No-Clip</span></div>
+        <div id="stairHUD" style="display:none; color:#ff4500; margin-top:5px;">
+            Escalones: <span id="lblSteps">0</span> / 5000<br>
+            <small>[E] Subir | [Espacio] Saltar al vacío</small>
+        </div>
     </div>
 
     <div id="crosshair"></div>
 
     <div id="mainMenu">
         <h1>🟨 THE BACKROOMS: INFINITE 🟨</h1>
-        <p>Estilo visual: Low-Res Retro (Menos gráficos = Más Terror)</p>
+        <p style="font-size:12px;">Simulación WebXR Multi-Nivel Estilo VHS de Bajos Recursos.</p>
+        
         <div style="margin: 15px 0; font-size: 14px;">
-            Dinero disponible: $<span id="menuMoney">0</span>
+            Tu Dinero: $<span id="menuMoney">0</span>
         </div>
-        <div id="shop">
-            <button class="btn" onclick="buyEquipment('flashlight', 100)">Comprar Linterna ($100)</button>
-            <button class="btn" onclick="buyEquipment('laser', 250)">Puntero Láser VR Avanzado ($250)</button>
+        
+        <div id="shop" style="border: 1px solid #ceb245; padding: 10px; background: rgba(0,0,0,0.3);">
+            <div style="font-size:12px; margin-bottom:5px;">TIENDA DE SUPERVIVENCIA</div>
+            <button class="btn" style="font-size:11px; padding:6px;" onclick="buyEquipment('flashlight', 100)">Linterna de Litio ($100)</button>
+            <button class="btn" style="font-size:11px; padding:6px;" onclick="buyEquipment('laser', 250)">Láser de Mapeo VR ($250)</button>
         </div>
-        <br>
+
+        <div class="lore-list">
+            <b>Rutas de Escape Conocidas (Lore):</b>
+            <ol id="loreRoutes"></ol>
+        </div>
+        
+        <div id="vr-button-container" style="margin-top:15px;"></div>
         <button class="btn" style="background:#ceb245; color:#000;" onclick="startGame(false)">JUGAR EN PC / CONSOLA</button>
-        <button class="btn" style="background:#8a2be2; color:#fff;" onclick="startGame(true)">ENTRAR EN OCULUS QUEST (VR)</button>
     </div>
-
-    <canvas id="renderCanvas"></canvas>
-
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <script>
         // ==========================================
-        // 1. VARIABLES DE ESTADO Y ECONOMÍA
+        // 1. ESTADO GLOBAL Y LORE ACCURATE
         // ==========================================
         let gameState = {
             money: parseInt(localStorage.getItem('br_money')) || 0,
@@ -58,25 +70,27 @@
         };
 
         const ESCAPE_ROUTES_LORE = [
-            "No-clip a través de la pared desteñida en Nivel 0",
-            "El elevador de servicio oculto en el Nivel 4",
-            "Romper el suelo falso en el Nivel 1",
-            "La trampilla de ventilación del Nivel 3",
-            "Nivel de las Escaleras: Contar exactamente 5000 escalones y saltar al centro",
-            "Sumergirse en la pileta oscura del Nivel 7",
-            "Cruzar la puerta falsa 'EXIT' en la Zona Comercial",
-            "Interfase de comando en la computadora del final",
-            "Nivel 3999: Completar la lista de tareas infinitas",
-            "El Hub: Encontrar la grieta en el código de la puerta principal"
+            "No-clip en la pared desteñida del Nivel 0.",
+            "Elevador oculto detrás del muro falso en Nivel 4.",
+            "Romper el suelo débil del Nivel 1.",
+            "Trampilla de ventilación oxidada en Nivel 3.",
+            "Nivel 92 (Escaleras): Cuenta 5000 escalones exactos y salta al centro.",
+            "Sumergirse en la pileta oscura del Nivel 7.",
+            "Cruzar la puerta falsa 'EXIT' en la Zona Comercial.",
+            "Interfase de comando en la computadora terminal final.",
+            "Nivel 3999: Completar la lista de tareas infinitas.",
+            "The Hub: Encontrar la grieta de código en la puerta principal."
         ];
 
-        // Todas las entidades icónicas del Lore oficial
         const ENTITY_TYPES = ["Bacteria", "Smiler", "Skin-Stealer", "Hound", "Faceling", "Partygoer", "Wretch", "Clump", "Deathmite", "Insanity"];
+
+        // Llenar rutas en el menú
+        const loreList = document.getElementById('loreRoutes');
+        ESCAPE_ROUTES_LORE.forEach(r => { let li = document.createElement('li'); li.innerText = r; loreList.appendChild(li); });
 
         // ==========================================
         // 2. CONEXIÓN MULTIJUGADOR (Socket.io)
         // ==========================================
-        // Nota: Puedes apuntar esta URL a tu propio servidor Node.js/Socket.io cuando lo montes
         const socket = io("https://tu-servidor-placeholder.com", { autoConnect: false });
         let networkPlayers = {};
 
@@ -86,7 +100,7 @@
                 socket.emit('joinRoom', { room: gameState.multiplayerRoom, maxPlayers: 5 });
             });
             socket.on('playerMoved', (data) => {
-                networkPlayers[data.id] = data; // Guardar posición de los otros 4 jugadores
+                if(data.id !== socket.id) updateNetworkPlayer(data);
             });
             socket.on('shareMissionReward', (data) => {
                 addMoney(data.amount);
@@ -94,115 +108,260 @@
         }
 
         // ==========================================
-        // 3. MOTOR GRÁFICO MATRIX (WebGL2 Puro desde Cero)
+        // 3. MOTOR GRÁFICO THREE.JS (WebXR Adaptativo)
         // ==========================================
-        let gl;
-        let canvas = document.getElementById('renderCanvas');
-        let mapGrid = [];
-        let mapSize = 32;
+        let scene, camera, renderer, playerGroup;
+        let mapGrid = [], mapSize = 24;
+        let wallsMesh = [], entities = [], networkMeshes = {};
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let clock = new THREE.Clock();
+        
+        // Luces e inventario objetos
+        let flashlightObj = null, laserObj = null;
 
-        function initWebGL() {
-            gl = canvas.getContext('webgl2');
-            if (!gl) { alert('Tu navegador o dispositivo no soporta WebGL2 nativo.'); return; }
+        function initThree() {
+            scene = new THREE.Scene();
+            // Niebla densa amarillenta (Efecto claustrofóbico de Backrooms)
+            scene.fog = new THREE.FogExp2(0x1a1a11, 0.15);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             
-            // Forzar resolución baja para el efecto "Retro Estilo VHS de Terror" y evitar bugs en Oculus 1/2
-            canvas.width = window.innerWidth / 2;
-            canvas.height = window.innerHeight / 2;
-            gl.viewport(0, 0, canvas.width, canvas.height);
-            gl.clearColor(0.08, 0.08, 0.05, 1.0); // Tinte amarillento sucio (Alfombra húmeda)
-            gl.enable(gl.DEPTH_TEST);
+            // Contenedor del jugador (Esencial para WebXR / Oculus Quest)
+            playerGroup = new THREE.Group();
+            playerGroup.position.set(2, 0, 2);
+            playerGroup.add(camera);
+            scene.add(playerGroup);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limitar para Oculus Quest 1/2 antiguos
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Luz ambiental tenue de tubos fluorescentes defectuosos
+            let ambientLight = new THREE.AmbientLight(0x22221c);
+            scene.add(ambientLight);
+
+            // Configurar botón nativo XR de Oculus
+            let vrButton = THREE.VRButton.createButton(renderer);
+            document.getElementById('vr-button-container').appendChild(vrButton);
             
+            renderer.xr.addEventListener('sessionstart', () => {
+                gameState.isVR = true;
+                document.getElementById('mainMenu').style.display = 'none';
+                setupVRControllers();
+            });
+
             generateProceduralLevel();
+            window.addEventListener('resize', onWindowResize);
         }
 
+        // ==========================================
+        // 4. GENERACIÓN DE LABERINTOS PROCEDIMENTALES INFINITOS
+        // ==========================================
         function generateProceduralLevel() {
-            mapGrid = [];
-            // Aumenta el tamaño por cada nivel infinito superado
-            mapSize = 32 + (gameState.level * 2); 
+            // Limpiar nivel viejo
+            wallsMesh.forEach(w => scene.remove(w));
+            entities.forEach(e => scene.remove(e.mesh));
+            wallsMesh = []; entities = [];
             
-            for(let x=0; x<mapSize; x++) {
+            // Modificar el ambiente según el nivel
+            if(gameState.level === 92) {
+                document.getElementById('stairHUD').style.display = 'block';
+                document.getElementById('lblMission').innerText = "Nivel 92: Sube 5,000 escalones, luego salta.";
+                buildStaircaseWorld();
+                return;
+            } else {
+                document.getElementById('stairHUD').style.display = 'none';
+            }
+
+            mapSize = 20 + (gameState.level * 2);
+            
+            // Materiales de baja resolución (Estilo Retro PSX / VHS)
+            let wallMat = new THREE.MeshBasicMaterial({ color: 0x8a731e }); // Papel tapiz amarillo sucio
+            let noclipMat = new THREE.MeshBasicMaterial({ color: 0x6e5c18 }); // Muro inestable parpadeante
+            let floorMat = new THREE.MeshBasicMaterial({ color: 0x3a331a }); // Alfombra húmeda
+            let ceilMat = new THREE.MeshBasicMaterial({ color: 0x555544 }); // Techo de oficina
+            
+            let boxGeo = new THREE.BoxGeometry(1, 3, 1);
+            let planeGeo = new THREE.PlaneGeometry(mapSize, mapSize);
+
+            // Suelo y Techo
+            let floor = new THREE.Mesh(planeGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set(mapSize/2, 0, mapSize/2);
+            scene.add(floor);
+            wallsMesh.push(floor);
+
+            let ceil = new THREE.Mesh(planeGeo, ceilMat);
+            ceil.rotation.x = Math.PI / 2;
+            ceil.position.set(mapSize/2, 3, mapSize/2);
+            scene.add(ceil);
+            wallsMesh.push(ceil);
+
+            // Inyectar matriz
+            mapGrid = [];
+            let noclipX = Math.floor(Math.random() * (mapSize - 4)) + 2;
+            let noclipZ = Math.floor(Math.random() * (mapSize - 4)) + 2;
+
+            for (let x = 0; x < mapSize; x++) {
                 mapGrid[x] = [];
-                for(let z=0; z<mapSize; z++) {
-                    // Generación aleatoria de laberinto (1 = pared, 0 = pasillo)
-                    if(x===0 || z===0 || x===mapSize-1 || z===mapSize-1) {
-                        mapGrid[x][z] = 1; // Fronteras
+                for (let z = 0; z < mapSize; z++) {
+                    if (x === 0 || z === 0 || x === mapSize - 1 || z === mapSize - 1) {
+                        mapGrid[x][z] = 1; // Muros perimetrales
+                    } else if (x === noclipX && z === noclipZ) {
+                        mapGrid[x][z] = 2; // Zona de No-Clip
                     } else {
-                        mapGrid[x][z] = Math.random() > 0.82 ? 1 : 0;
+                        mapGrid[x][z] = Math.random() > 0.85 ? 1 : 0;
+                    }
+
+                    if (mapGrid[x][z] === 1) {
+                        let wall = new THREE.Mesh(boxGeo, wallMat);
+                        wall.position.set(x, 1.5, z);
+                        scene.add(wall);
+                        wallsMesh.push(wall);
+                    } else if (mapGrid[x][z] === 2) {
+                        let ncWall = new THREE.Mesh(boxGeo, noclipMat);
+                        ncWall.position.set(x, 1.5, z);
+                        scene.add(ncWall);
+                        wallsMesh.push(ncWall);
                     }
                 }
             }
-            // Inyectar coordenada exacta de la pared falsa para hacer "No-Clip"
-            let ncX = Math.floor(Math.random() * (mapSize-2)) + 1;
-            let ncZ = Math.floor(Math.random() * (mapSize-2)) + 1;
-            mapGrid[ncX][ncZ] = 2; // 2 representa la zona de No-Clip transitable
+
+            // Reposicionar Jugador a un lugar seguro
+            playerGroup.position.set(2, 0, 2);
+            spawnEntities();
+            updateEquipmentVisuals();
+        }
+
+        // Construcción especial del Nivel 92 (Las Escaleras)
+        function buildStaircaseWorld() {
+            let stairMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+            let geo = new THREE.BoxGeometry(4, 0.3, 1);
+            // Crear tramo infinito visual de escaleras hacia arriba
+            for(let i=0; i<60; i++){
+                let step = new THREE.Mesh(geo, stairMat);
+                step.position.set(0, i * 0.3, -i);
+                scene.add(step);
+                wallsMesh.push(step);
+            }
+            playerGroup.position.set(0, 0, 0);
+        }
+
+        function spawnEntities() {
+            let entityGeo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+            let count = 2 + gameState.level; 
+            for(let i=0; i<count; i++) {
+                let entName = ENTITY_TYPES[Math.floor(Math.random()*ENTITY_TYPES.length)];
+                // Color identificador por entidad (Estilo minimalist retro horror)
+                let color = entName === "Smiler" ? 0xffffff : 0xaa0000;
+                let mat = new THREE.MeshBasicMaterial({ color: color });
+                let mesh = new THREE.Mesh(entityGeo, mat);
+                
+                let rx = Math.floor(Math.random()*(mapSize-4))+2;
+                let rz = Math.floor(Math.random()*(mapSize-4))+2;
+                mesh.position.set(rx, 0.9, rz);
+                
+                scene.add(mesh);
+                entities.push({ mesh: mesh, name: entName, speed: 0.02 + (Math.random()*0.02) });
+            }
         }
 
         // ==========================================
-        // 4. LÓGICA MECÁNICA DEL NIVEL DE LAS ESCALERAS
+        // 5. MECÁNICAS DE JUEGO, TIENDA Y EQUIPAMIENTO
         // ==========================================
-        function handleStaircaseInput(action) {
-            if (gameState.level !== 92) return; // Supongamos que el Nivel 92 es el de las escaleras
+        function updateEquipmentVisuals() {
+            if(flashlightObj) playerGroup.remove(flashlightObj);
+            if(laserObj) playerGroup.remove(laserObj);
 
+            if(gameState.inventory.flashlight) {
+                flashlightObj = new THREE.SpotLight(0xfffaed, 5, 15, Math.PI/6, 0.5, 1);
+                flashlightObj.position.set(0.2, 1.2, 0);
+                playerGroup.add(flashlightObj);
+                // Target de la linterna apunta al frente
+                let target = new THREE.Object3D();
+                target.position.set(0, 1.2, -5);
+                playerGroup.add(target);
+                flashlightObj.target = target;
+            }
+
+            if(gameState.inventory.laser) {
+                let laserGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-20)]);
+                let laserMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+                laserObj = new THREE.Line(laserGeo, laserMat);
+                laserObj.position.set(-0.2, 1.0, 0);
+                playerGroup.add(laserObj);
+            }
+        }
+
+        function buyEquipment(item, cost) {
+            if (gameState.money >= cost && !gameState.inventory[item]) {
+                gameState.money -= cost;
+                gameState.inventory[item] = true;
+                localStorage.setItem('br_money', gameState.money);
+                localStorage.setItem('br_inv', JSON.stringify(gameState.inventory));
+                updateHUD();
+                updateEquipmentVisuals();
+                alert("¡Artículo de supervivencia comprado y equipado de inmediato!");
+            } else {
+                alert("Fondos insuficientes o ya posees este objeto en tu inventario.");
+            }
+        }
+
+        function handleStaircaseInput(action) {
+            if (gameState.level !== 92) return;
             if (action === "step") {
-                gameState.staircaseSteps++;
-                if (gameState.staircaseSteps % 500 === 0) {
-                    addMoney(100); // Misión interna: Recompensa por avanzar
-                    document.getElementById('lblMission').innerText = `Contando escaleras: ${gameState.staircaseSteps}/5000`;
-                }
+                gameState.staircaseSteps += 25; // Avanzar rápido simulando inputs acelerados
+                document.getElementById('lblSteps').innerText = gameState.staircaseSteps;
+                // Efecto visual de escalada
+                playerGroup.position.y += 0.3;
+                playerGroup.position.z -= 1.0;
+                
+                if (gameState.staircaseSteps % 500 === 0) addMoney(150);
             } else if (action === "jumpToCenter") {
                 if (gameState.staircaseSteps === 5000) {
-                    alert("¡LORE ACCURATE! Has contado exactamente 5,000 escalones. Rompes el ciclo y regresas a la Realidad.");
-                    gameState.money += 5000;
-                    resetGameToReality();
+                    alert("¡LORE CORRECTO! Escalaste exactamente 5,000 escalones. Rompes el bucle existencial y regresas a la Realidad.");
+                    gameState.money += 3000;
+                    gameState.level = 0;
                 } else {
-                    alert(`¡FALLASTE! Contaste ${gameState.staircaseSteps} escalones en lugar de 5000. Te desvaneces al opuesto exacto de este nivel.`);
-                    gameState.level = -92; // Sub-nivel negativo del vacío inverso
-                    gameState.staircaseSteps = 0;
-                    generateProceduralLevel();
-                    updateHUD();
+                    alert(`¡ERROR DE CONTEO! Saltaste en el escalón ${gameState.staircaseSteps}. Caes al vacío inverso: Sub-Nivel Negativo.`);
+                    gameState.level = -92;
                 }
+                gameState.staircaseSteps = 0;
+                document.getElementById('lblSteps').innerText = 0;
+                generateProceduralLevel();
+                updateHUD();
             }
         }
 
-        // ==========================================
-        // 5. DETECCIÓN DE NO-CLIP (Físicas de colisión del jugador)
-        // ==========================================
-        let playerPos = { x: 2.0, y: 1.0, z: 2.0, rotY: 0 };
+        // Físicas y colisión de No-Clip
+        function checkCollisionsAndNoClip(oldPos) {
+            if(gameState.level === 92) return; // Nivel escalera no tiene muros
 
-        function checkPlayerMovementAndNoClip(nextX, nextZ) {
-            let gridX = Math.floor(nextX);
-            let gridZ = Math.floor(nextZ);
+            let gx = Math.floor(playerGroup.position.x);
+            let gz = Math.floor(playerGroup.position.z);
 
-            if (gridX >= 0 && gridX < mapSize && gridZ >= 0 && gridZ < mapSize) {
-                let cellType = mapGrid[gridX][gridZ];
-                
-                if (cellType === 0) {
-                    // Movimiento normal por pasillo libre
-                    playerPos.x = nextX;
-                    playerPos.z = nextZ;
-                } else if (cellType === 2) {
-                    // ¡Hiciste No-Clip! Atravesaste la realidad física
-                    gameState.level++;
-                    addMoney(300); // Dinero por pasar misiones de nivel
-                    document.getElementById('lblMission').innerText = `¡No-Clip exitoso! Bienvenido al Nivel ${gameState.level}`;
+            if (gx >= 0 && gx < mapSize && gz >= 0 && gz < mapSize) {
+                let cell = mapGrid[gx][gz];
+                if (cell === 1) {
+                    // Colisión con muro: revertir
+                    playerGroup.position.copy(oldPos);
+                } else if (cell === 2) {
+                    // ¡Hiciste No-Clip! Pasas de nivel
+                    gameState.level = gameState.level === -92 ? 0 : gameState.level + 1;
+                    addMoney(500);
+                    document.getElementById('lblMission').innerText = `¡No-Clip Exitoso! Entrando al Nivel ${gameState.level}`;
                     
-                    // Notificar a los otros 4 jugadores del server del bono económico
-                    if (socket.connected) {
-                        socket.emit('triggerGlobalMission', { room: gameState.multiplayerRoom, amount: 50 });
+                    if(socket.connected) {
+                        socket.emit('shareMissionReward', { room: gameState.multiplayerRoom, amount: 100 });
                     }
-                    
                     generateProceduralLevel();
-                    playerPos.x = 2.0;
-                    playerPos.z = 2.0;
                     updateHUD();
                 }
-                // Si cellType === 1 choca con pared sólida, no hace nada (Física básica)
             }
         }
 
-        // ==========================================
-        // 6. TIENDA DEL MENÚ PRINCIPAL Y ECONOMÍA
-        // ==========================================
         function updateHUD() {
             document.getElementById('lblLevel').innerText = gameState.level;
             document.getElementById('lblMoney').innerText = gameState.money;
@@ -215,144 +374,145 @@
             updateHUD();
         }
 
-        function buyEquipment(item, cost) {
-            if (gameState.money >= cost && !gameState.inventory[item]) {
-                gameState.money -= cost;
-                gameState.inventory[item] = true;
-                localStorage.setItem('br_money', gameState.money);
-                localStorage.setItem('br_inv', JSON.stringify(gameState.inventory));
-                updateHUD();
-                alert(`Compraste: ${item === 'flashlight' ? 'Linterna de Alta Potencia' : 'Puntero Láser VR de Precisión'}. ¡Equipado!`);
-            } else {
-                alert("Fondos insuficientes o ya compraste este artículo de supervivencia.");
-            }
-        }
-
-        function resetGameToReality() {
-            gameState.level = 0;
-            gameState.staircaseSteps = 0;
-            localStorage.setItem('br_money', gameState.money);
-            generateProceduralLevel();
-            updateHUD();
-        }
-
         // ==========================================
-        // 7. ENTRADA WEBXR (Soporte Oculus Quest 1, 2, 3, 3s)
+        // 6. CONTROLES Y SOPORTE DE MANDOS OCULUS (WEBXR)
         // ==========================================
-        let xrSession = null;
-        let xrRefSpace = null;
-
-        async function startGame(wantVR) {
-            document.getElementById('mainMenu').style.display = 'none';
-            initWebGL();
-            updateHUD();
-
-            if (wantVR && navigator.xr) {
-                try {
-                    const sessionSupported = await navigator.xr.isSessionSupported('immersive-vr');
-                    if (sessionSupported) {
-                        xrSession = await navigator.xr.requestSession('immersive-vr', {
-                            requiredFeatures: ['local-floor']
-                        });
-                        gameState.isVR = true;
-                        initMultiplayer();
-                        
-                        xrSession.addEventListener('end', () => { gameState.isVR = false; });
-                        let glLayer = new XRWebGLLayer(xrSession, gl);
-                        xrSession.updateRenderState({ baseLayer: glLayer });
-                        
-                        xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
-                        xrSession.requestAnimationFrame(renderVRFrame);
-                        
-                        setupVRLaserPointer(); // Activar puntero nativo para Oculus
-                    } else {
-                        alert("VR no soportado en este dispositivo actual.");
-                        startDesktopLoop();
-                    }
-                } catch (e) {
-                    console.error("Error al arrancar WebXR: ", e);
-                    startDesktopLoop();
-                }
-            } else {
-                // Modo PC o Consola con mandos/teclado tradicionales
-                initMultiplayer();
-                startDesktopLoop();
-                setupDesktopControls();
-            }
-        }
-
-        function setupVRLaserPointer() {
-            // Escucha los mandos Touch de Oculus Quest
-            xrSession.addEventListener('inputsourceschange', (e) => {
-                for (let inputSource of xrSession.inputSources) {
-                    if (inputSource.targetRayMode === 'tracked-pointer' && inputSource.handedness === 'right') {
-                        // El puntero láser se genera proyectando la matriz del control
-                        console.log("Puntero Láser de Oculus Quest Inicializado correctamente.");
-                    }
-                }
-            });
-        }
-
-        // ==========================================
-        // 8. BUCLE PRINCIPAL DE RENDER (Bajos Gráficos / Horror Loops)
-        // ==========================================
-        function startDesktopLoop() {
-            function loop() {
-                // Borrar pantalla con efecto glitch de iluminación de linterna
-                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-                
-                // Aquí el WebGL dibuja los cubos texturizados de color amarillo/humedad 
-                // usando matrices ultra simplificadas para garantizar 90FPS estables en Oculus Quest 1 y 2.
-                
-                // Simulación de movimiento de entidades en tiempo real
-                if (Math.random() > 0.99) {
-                    console.log(`Entidad acechando en el servidor: ${ENTITY_TYPES[Math.floor(Math.random() * ENTITY_TYPES.length)]}`);
-                }
-
-                // Sincronizar posición con multiplayer
-                if (socket.connected && Math.random() > 0.8) {
-                    socket.emit('playerMove', { room: gameState.multiplayerRoom, x: playerPos.x, z: playerPos.z, rot: playerPos.rotY });
-                }
-
-                requestAnimationFrame(loop);
-            }
-            requestAnimationFrame(loop);
-        }
-
-        function renderVRFrame(time, frame) {
-            let session = frame.session;
-            session.requestAnimationFrame(renderVRFrame);
-            let pose = frame.getViewerPose(xrRefSpace);
-
-            if (pose) {
-                gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer);
-                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-                // Renderizado Estereoscópico (Un render por cada ojo dentro de las pantallas de Oculus)
-                for (let view of pose.views) {
-                    let viewport = session.renderState.baseLayer.getViewport(view);
-                    gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
-                    
-                    // Aplicar la rotación y posición del giroscopio del visor Oculus Quest directamente
-                }
-            }
-        }
-
         function setupDesktopControls() {
             document.addEventListener('keydown', (e) => {
-                let speed = 0.15;
-                if(e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') checkPlayerMovementAndNoClip(playerPos.x, playerPos.z + speed);
-                if(e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') checkPlayerMovementAndNoClip(playerPos.x, playerPos.z - speed);
-                if(e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') checkPlayerMovementAndNoClip(playerPos.x - speed, playerPos.z);
-                if(e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') checkPlayerMovementAndNoClip(playerPos.x + speed, playerPos.z);
-                
-                // Teclas especiales para simular el Nivel 92 (Las Escaleras) en PC
-                if(e.key === 'e' || e.key === 'E') handleStaircaseInput("step"); 
-                if(e.key === 'Spacebar' || e.key === ' ') handleStaircaseInput("jumpToCenter");
+                if(e.key.toLowerCase() === 'w') moveForward = true;
+                if(e.key.toLowerCase() === 's') moveBackward = true;
+                if(e.key.toLowerCase() === 'a') moveLeft = true;
+                if(e.key.toLowerCase() === 'd') moveRight = true;
+                if(e.key.toLowerCase() === 'e') handleStaircaseInput("step");
+                if(e.key === ' ') handleStaircaseInput("jumpToCenter");
+            });
+            document.addEventListener('keyup', (e) => {
+                if(e.key.toLowerCase() === 'w') moveForward = false;
+                if(e.key.toLowerCase() === 's') moveBackward = false;
+                if(e.key.toLowerCase() === 'a') moveLeft = false;
+                if(e.key.toLowerCase() === 'd') moveRight = false;
+            });
+            // Rotación de cámara básica en PC por movimiento de mouse clickeado
+            document.addEventListener('mousemove', (e) => {
+                if(!gameState.isVR && document.pointerLockElement === renderer.domElement) {
+                    playerGroup.rotation.y -= e.movementX * 0.0025;
+                }
+            });
+            renderer.domElement.addEventListener('click', () => {
+                if(!gameState.isVR) renderer.domElement.requestPointerLock();
             });
         }
 
-        // Mantener sincronizado el balance del menú antes de dar clic a iniciar
+        function setupVRControllers() {
+            // Lee los Joysticks de los mandos Touch de Oculus Quest 2/3/1
+            let controller1 = renderer.xr.getController(0);
+            let controller2 = renderer.xr.getController(1);
+            
+            // Evento para simular "Subir Escalón" o interactuar usando gatillos de Oculus
+            controller1.addEventListener('selectstart', () => handleStaircaseInput("step"));
+            controller2.addEventListener('selectstart', () => handleStaircaseInput("jumpToCenter"));
+        }
+
+        function handleVRMovement(delta) {
+            let session = renderer.xr.getSession();
+            if (session && session.inputSources) {
+                for (let source of session.inputSources) {
+                    if (source.gamepad) {
+                        let axes = source.gamepad.axes; // [0] = horizontal, [1] = vertical del joystick
+                        let speed = 2.5 * delta;
+                        
+                        if(source.handedness === 'left') { // Mando izquierdo mueve
+                            playerGroup.translateZ(axes[1] * speed);
+                            playerGroup.translateX(axes[0] * speed);
+                        }
+                        if(source.handedness === 'right') { // Mando derecho rota la cámara
+                            playerGroup.rotation.y -= axes[0] * 0.04;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 7. MULTIJUGADOR (Sincronización de Avatares)
+        // ==========================================
+        function updateNetworkPlayer(data) {
+            if (!networkMeshes[data.id]) {
+                let netGeo = new THREE.BoxGeometry(0.5, 1.7, 0.5);
+                let netMat = new THREE.MeshBasicMaterial({ color: 0x0000ff }); // Aliados en azul transparente
+                let netMesh = new THREE.Mesh(netGeo, netMat);
+                scene.add(netMesh);
+                networkMeshes[data.id] = netMesh;
+            }
+            networkMeshes[data.id].position.set(data.x, 0.85, data.z);
+        }
+
+        // ==========================================
+        // 8. BUCLE DE RENDERIZADO ACTIVO (90 FPS VR)
+        // ==========================================
+        function startGame(wantVR) {
+            document.getElementById('mainMenu').style.display = 'none';
+            initThree();
+            setupDesktopControls();
+            initMultiplayer();
+            updateHUD();
+
+            // Bucle principal nativo optimizado para visores VR
+            renderer.setAnimationLoop(renderFrame);
+        }
+
+        function renderFrame() {
+            let delta = clock.getDelta();
+            let oldPosition = playerGroup.position.clone();
+
+            // 1. Movimiento en PC
+            let speed = 3.0 * delta;
+            if (moveForward) playerGroup.translateZ(-speed);
+            if (moveBackward) playerGroup.translateZ(speed);
+            if (moveLeft) playerGroup.translateX(-speed);
+            if (moveRight) playerGroup.translateX(speed);
+
+            // 2. Movimiento en Oculus Quest
+            if (gameState.isVR) handleVRMovement(delta);
+
+            // Asegurar que el jugador mantenga los pies en el suelo (y = 0)
+            if(gameState.level !== 92) playerGroup.position.y = 0;
+
+            // 3. Físicas e interrupciones
+            checkCollisionsAndNoClip(oldPosition);
+
+            // 4. Inteligencia Artificial de las Entidades (Te persiguen lentamente)
+            entities.forEach(ent => {
+                let dir = new THREE.Vector3().subVectors(playerGroup.position, ent.mesh.position).normalize();
+                ent.mesh.position.x += dir.x * ent.speed;
+                ent.mesh.position.z += dir.z * ent.speed;
+                ent.mesh.lookAt(playerGroup.position.x, ent.mesh.position.y, playerGroup.position.z);
+
+                // Si una entidad te atrapa, pierdes dinero y reinicias nivel
+                if(ent.mesh.position.distanceTo(playerGroup.position) < 0.8) {
+                    alert(`¡Fuiste atrapado por un ${ent.name}!`);
+                    gameState.money = Math.max(0, gameState.money - 200);
+                    gameState.level = 0;
+                    generateProceduralLevel();
+                    updateHUD();
+                }
+            });
+
+            // 5. Emitir posición multijugador en tiempo real
+            if(socket.connected && Math.random() > 0.7) {
+                socket.emit('playerMove', { room: gameState.multiplayerRoom, x: playerGroup.position.x, z: playerGroup.position.z });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Sincronizar UI del menú al inicio
         document.getElementById('menuMoney').innerText = gameState.money;
     </script>
 </body>
