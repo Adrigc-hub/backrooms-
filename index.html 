@@ -296,3 +296,720 @@
                 this.logElement.innerText = text;
             }
         }
+        // ============================================================================
+        // MÓDULO GRÁFICO AVANZADO, RENDERIZADO PBR Y PIPELINE WEBXR
+        // ============================================================================
+        class GraphicsModule {
+            constructor(gameEngine) {
+                this.game = gameEngine;
+                this.scene = gameEngine.scene;
+                this.camera = gameEngine.camera;
+                this.renderer = gameEngine.renderer;
+                
+                this.materials = {};
+                this.lights = [];
+                
+                this.setupEnvironment();
+                this.generateProceduralAssets();
+            }
+
+            setupEnvironment() {
+                // Neblina lineal volumétrica para simular la degradación del espacio
+                this.scene.background = new THREE.Color(0x0a0a07);
+                this.scene.fog = new THREE.FogExp2(0x0a0a07, 0.045);
+
+                // Configuración de iluminación global indirecta
+                this.ambientLight = new THREE.AmbientLight(0xfffebb, 0.18);
+                this.scene.add(this.ambientLight);
+
+                // Linterna avanzada (SpotLight física con decaimiento cuadrático)
+                this.flashlight = new THREE.SpotLight(0xfff5db, 5.5, 38, Math.PI / 4.8, 0.55, 1.1);
+                this.flashlight.castShadow = true;
+                this.flashlight.shadow.mapSize.width = 1024;
+                this.flashlight.shadow.mapSize.height = 1024;
+                this.flashlight.shadow.camera.near = 0.05;
+                this.flashlight.shadow.camera.far = 40;
+                this.flashlight.shadow.bias = -0.0005;
+
+                this.camera.add(this.flashlight);
+                this.flashlight.position.set(0, 0, 0);
+                this.flashlight.target.position.set(0, 0, -1);
+                this.camera.add(this.flashlight.target);
+
+                // Configuración de renderizado de alto rendimiento para procesadores móviles de Quest
+                this.renderer.physicallyCorrectLights = true;
+                this.renderer.outputEncoding = THREE.sRGBEncoding;
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            }
+
+            generateProceduralAssets() {
+                // Función matemática interna para sintetizar micro-rugosidades de asfalto/papel tapiz
+                const createNoiseCanvas = (baseColor, noiseColor, scale, roughnessFactor) => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 512;
+                    canvas.height = 512;
+                    const ctx = canvas.getContext('2d');
+                    
+                    ctx.fillStyle = baseColor;
+                    ctx.fillRect(0, 0, 512, 512);
+                    
+                    // Capa de imperfecciones orgánicas
+                    ctx.fillStyle = noiseColor;
+                    for (let i = 0; i < 45000; i++) {
+                        let x = Math.random() * 512;
+                        let y = Math.random() * 512;
+                        let s = Math.random() * scale + 0.5;
+                        ctx.globalAlpha = Math.random() * roughnessFactor;
+                        ctx.fillRect(x, y, s, s);
+                    }
+                    
+                    // Capa de suciedad/humedad (veteado aleatorio)
+                    ctx.globalAlpha = 0.07;
+                    ctx.fillStyle = '#000000';
+                    for(let i = 0; i < 8; i++) {
+                        ctx.beginPath();
+                        ctx.arc(Math.random()*512, Math.random()*512, Math.random()*120 + 30, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    return texture;
+                };
+
+                // Materiales Físicos (PBR) con mapas de rugosidad simulados por código
+                this.materials.wall0 = new THREE.MeshStandardMaterial({
+                    map: createNoiseCanvas('#c3b47b', '#948753', 2, 0.35),
+                    roughness: 0.88,
+                    metalness: 0.02
+                });
+
+                this.materials.floor0 = new THREE.MeshStandardMaterial({
+                    map: createNoiseCanvas('#594f38', '#383121', 1.5, 0.45),
+                    roughness: 0.38, // Suelo reflectante semi-húmedo
+                    metalness: 0.05
+                });
+
+                this.materials.ceiling0 = new THREE.MeshStandardMaterial({
+                    map: createNoiseCanvas('#dedede', '#a3a3a3', 1, 0.15),
+                    roughness: 0.95,
+                    metalness: 0.0
+                });
+
+                this.materials.wall1 = new THREE.MeshStandardMaterial({
+                    map: createNoiseCanvas('#363636', '#141414', 2.5, 0.6),
+                    roughness: 0.7,
+                    metalness: 0.4
+                });
+
+                this.materials.stairs = new THREE.MeshStandardMaterial({
+                    map: createNoiseCanvas('#212121', '#0d0d0d', 1, 0.5),
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+            }
+
+            setAtmosphereForLevel(levelNum) {
+                if (levelNum === 0) {
+                    this.scene.fog.color.setHex(0x0a0a07);
+                    this.renderer.setClearColor(0x0a0a07);
+                    this.ambientLight.color.setHex(0xfffebb);
+                    this.ambientLight.intensity = 0.18;
+                } else if (levelNum === 1) {
+                    this.scene.fog.color.setHex(0x020203);
+                    this.renderer.setClearColor(0x020203);
+                    this.ambientLight.color.setHex(0x8cd3ff);
+                    this.ambientLight.intensity = 0.05; // Tonalidad industrial fría
+                } else if (levelNum === 5000) {
+                    this.scene.fog.color.setHex(0x000000);
+                    this.renderer.setClearColor(0x000000);
+                    this.ambientLight.intensity = 0.01; // Oscuridad absoluta de las escaleras
+                }
+            }
+        }
+
+        // ============================================================================
+        // MOTOR DE AUDIO SINTÉTICO 3D (PASOS, RESPIRACIÓN, INFRA-SONIDOS)
+        // ============================================================================
+        class AudioEngineModule {
+            constructor(gameEngine) {
+                this.game = gameEngine;
+                this.ctx = null;
+                this.isInitialized = false;
+                
+                // Intentar iniciar el motor de audio al primer toque de pantalla
+                setupAudioTrigger();
+            }
+
+            init() {
+                if (this.isInitialized) return;
+                
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.setupFluorescentHum();
+                this.setupOrganicBreathing();
+                
+                this.isInitialized = true;
+                console.log("Sintetizador de audio procedural online.");
+            }
+
+            setupFluorescentHum() {
+                // Generar el zumbido eléctrico distópico de 60Hz característico del Nivel 0
+                this.humOsc = this.ctx.createOscillator();
+                this.humGain = this.ctx.createGain();
+                this.humFilter = this.ctx.createBiquadFilter();
+
+                this.humOsc.type = 'sawtooth';
+                this.humOsc.frequency.setValueAtTime(60, this.ctx.currentTime); // 60Hz AC frequency
+                
+                this.humFilter.type = 'lowpass';
+                this.humFilter.frequency.setValueAtTime(150, this.ctx.currentTime);
+
+                this.humGain.gain.setValueAtTime(0.006, this.ctx.currentTime); // Volumen sutil de fondo
+
+                this.humOsc.connect(this.humFilter);
+                this.humFilter.connect(this.humGain);
+                this.humGain.connect(this.ctx.destination);
+                
+                this.humOsc.start(0);
+            }
+
+            setupOrganicBreathing() {
+                // Hilo de ruido rosa/blanco dinámico modulado para simular respiración pesada
+                setInterval(() => {
+                    if (!this.isInitialized || this.game.stats.sanity < 10) return;
+                    
+                    let sanityRatio = this.game.stats.sanity / 100;
+                    let speed = 2500 * sanityRatio; // Respiración acelerada si hay pánico
+                    
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 1.2);
+                    
+                    gain.gain.setValueAtTime(0.002, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 1.2);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 1.3);
+                }, 3000);
+            }
+
+            playStepSound(running, crouching) {
+                if (!this.isInitialized) return;
+
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                let filter = this.ctx.createBiquadFilter();
+
+                osc.type = 'sine';
+                // Frecuencias graves sordas según el tipo de pisada
+                let baseFreq = crouching ? 40 : running ? 75 : 55;
+                osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(15, this.ctx.currentTime + 0.14);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(180, this.ctx.currentTime);
+
+                let vol = crouching ? 0.04 : running ? 0.28 : 0.14;
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.16);
+            }
+
+            playSanityCollapse() {
+                if (!this.isInitialized) return;
+                
+                // Ruido espectral estridente modulado cuando la cordura llega a zonas críticas
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(440, this.ctx.currentTime + 0.8);
+                
+                gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.8);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.9);
+            }
+        }
+
+        function setupAudioTrigger() {
+            const runOnce = () => {
+                if (game && game.audioEngineModule) {
+                    game.audioEngineModule.init();
+                }
+                document.removeEventListener('click', runOnce);
+                document.removeEventListener('keydown', runOnce);
+            };
+            document.addEventListener('click', runOnce);
+            document.addEventListener('keydown', runOnce);
+        }
+        // ============================================================================
+        // MÓDULO DE MAPAS, NIVELES Y GENERACIÓN PROCEDURAL INFINITA
+        // ============================================================================
+        class LevelModule {
+            constructor(gameEngine) {
+                this.game = gameEngine;
+                this.scene = gameEngine.scene;
+                this.graphics = gameEngine.graphicsModule;
+                
+                this.chunks = gameEngine.chunks;
+                this.collidableObjects = [];
+                this.noclipAnomalies = [];
+                
+                this.chunkSize = 24; // Tamaño de cada cuadrante espacial
+                this.wallSize = 4;
+            }
+
+            loadLevel(levelNum, fromNetwork = false) {
+                this.game.stats.level = levelNum;
+                document.getElementById('lbl-level').innerText = levelNum;
+
+                // Limpiar instancias previas del espacio tridimensional
+                this.chunks.forEach(chunk => this.scene.remove(chunk.mesh));
+                this.chunks.clear();
+                this.collidableObjects = [];
+                this.noclipAnomalies = [];
+
+                // Reconfigurar atmósfera de luces y niebla
+                this.graphics.setAtmosphereForLevel(levelNum);
+
+                // Forzar generación de la zona inicial
+                this.updateInfiniteGrid(this.game.camera.position.x, this.game.camera.position.z, true);
+
+                // Si fuiste tú quien mutó el nivel, avisa a tus compañeros
+                if (!fromNetwork) {
+                    this.game.networkModule.broadcastData({
+                        type: 'noclip',
+                        level: levelNum
+                    });
+                }
+            }
+
+            updateInfiniteGrid(playerX, playerZ, forceRebuild = false) {
+                // Calcular en qué coordenada de chunk se encuentra el jugador
+                let currentChunkX = Math.floor((playerX + (this.chunkSize * this.wallSize) / 2) / (this.chunkSize * this.wallSize));
+                let currentChunkZ = Math.floor((playerZ + (this.chunkSize * this.wallSize) / 2) / (this.chunkSize * this.wallSize));
+
+                // Cargar cuadrantes en un anillo de 3x3 alrededor del usuario
+                for (let x = -1; x <= 1; x++) {
+                    for (let z = -1; z <= 1; z++) {
+                        this.buildChunk(currentChunkX + x, currentChunkZ + z);
+                    }
+                }
+
+                // Optimizar memoria destruyendo chunks lejanos para evitar lag en Oculus
+                if (this.chunks.size > 15) {
+                    this.chunks.forEach((chunk, key) => {
+                        let dist = Math.sqrt(Math.pow(chunk.cx - currentChunkX, 2) + Math.pow(chunk.cz - currentChunkZ, 2));
+                        if (dist > 2) {
+                            this.scene.remove(chunk.mesh);
+                            // Quitar colisiones de ese chunk abandonado
+                            this.collidableObjects = this.collidableObjects.filter(obj => obj.chunkKey !== key);
+                            this.noclipAnomalies = this.noclipAnomalies.filter(obj => obj.chunkKey !== key);
+                            this.chunks.delete(key);
+                        }
+                    });
+                }
+            }
+
+            buildChunk(cx, cz) {
+                const key = `${cx},${cz}`;
+                if (this.chunks.has(key)) return;
+
+                const chunkGroup = new THREE.Group();
+                const currentLevel = this.game.stats.level;
+
+                // 1. Instanciar Placas de Suelo y Techo PBR
+                const totalLength = this.chunkSize * this.wallSize;
+                const floorGeom = new THREE.PlaneGeometry(totalLength, totalLength);
+                const floorMesh = new THREE.Mesh(floorGeom, currentLevel === 1 ? this.graphics.materials.wall1 : this.graphics.materials.floor0);
+                
+                floorMesh.rotation.x = -Math.PI / 2;
+                floorMesh.receiveShadow = true;
+                chunkGroup.add(floorMesh);
+
+                const ceilingMesh = new THREE.Mesh(floorGeom, this.graphics.materials.ceiling0);
+                ceilingMesh.rotation.x = Math.PI / 2;
+                ceilingMesh.position.y = this.wallSize;
+                chunkGroup.add(ceilingMesh);
+
+                // 2. Generación algorítmica de muros según patrón determinista (Seed por coordenadas)
+                const wallGeom = new THREE.BoxGeometry(this.wallSize, this.wallSize, this.wallSize);
+                
+                for (let i = 0; i < this.chunkSize; i++) {
+                    for (let j = 0; j < this.chunkSize; j++) {
+                        // Saltar posición central inicial para no enterrar al jugador en un bloque
+                        if (cx === 0 && cz === 0 && i > 10 && i < 14 && j > 10 && j < 14) continue;
+
+                        // Generador pseudo-aleatorio basado en pecado matemático matemático sine/cosine
+                        let pseudoRandom = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233 + i * 45.12 + j * 93.41)) % 1;
+                        let wallProbability = currentLevel === 5000 ? 0.45 : 0.22; // Nivel 5000 es super laberíntico
+
+                        if (pseudoRandom < wallProbability) {
+                            let mat = currentLevel === 1 ? this.graphics.materials.wall1 : this.graphics.materials.wall0;
+                            if (currentLevel === 5000) mat = this.graphics.materials.stairs;
+
+                            const wall = new THREE.Mesh(wallGeom, mat);
+                            
+                            // Calcular offsets espaciales exactos
+                            let posX = (cx * totalLength) + (i * this.wallSize) - (totalLength / 2);
+                            let posZ = (cz * totalLength) + (j * this.wallSize) - (totalLength / 2);
+                            
+                            wall.position.set(posX, this.wallSize / 2, posZ);
+                            wall.castShadow = true;
+                            wall.receiveShadow = true;
+                            
+                            chunkGroup.add(wall);
+
+                            // Asignar datos físicos estructurales
+                            wall.geometry.computeBoundingBox();
+                            this.collidableObjects.push({ mesh: wall, chunkKey: key });
+
+                            // Mutación de anomalía cuántica (Pared falsa NoClip)
+                            if (pseudoRandom < 0.015 && currentLevel < 1) {
+                                wall.isAnomalous = true;
+                                this.noclipAnomalies.push({ mesh: wall, chunkKey: key });
+                            }
+                        }
+                    }
+                }
+
+                // 3. Luces de techo parpadeantes (Zumbido industrial)
+                let lightPseudo = Math.abs(Math.cos(cx * 45.5 + cz * 19.3)) % 1;
+                if (lightPseudo > 0.4) {
+                    let pointLight = new THREE.PointLight(
+                        currentLevel === 1 ? 0x8cd3ff : 0xfffdb5, 
+                        currentLevel === 1 ? 1.5 : 2.5, 
+                        16, 
+                        1.2
+                    );
+                    pointLight.position.set(cx * totalLength, this.wallSize - 0.3, cz * totalLength);
+                    pointLight.castShadow = true;
+                    chunkGroup.add(pointLight);
+                }
+
+                // Trasladar grupo al cuadrante correspondiente y agregarlo a la simulación
+                chunkGroup.position.set(0, 0, 0);
+                this.scene.add(chunkGroup);
+                
+                this.chunks.set(key, { mesh: chunkGroup, cx: cx, cz: cz });
+            }
+
+            checkCollisions(oldPosition, newPosition) {
+                // Crear caja virtual alrededor del volumen del jugador
+                let playerRadius = 0.45;
+                let playerBB = new THREE.Box3(
+                    new THREE.Vector3(newPosition.x - playerRadius, 0.1, newPosition.z - playerRadius),
+                    new THREE.Vector3(newPosition.x + playerRadius, this.wallSize - 0.2, newPosition.z + playerRadius)
+                );
+
+                for (let i = 0; i < this.collidableObjects.length; i++) {
+                    let obstacle = this.collidableObjects[i].mesh;
+                    let obstacleBB = new THREE.Box3().setFromObject(obstacle);
+
+                    if (playerBB.intersectsBox(obstacleBB)) {
+                        // Si es una anomalía, procesar el cruce dimensional inmediatamente
+                        if (obstacle.isAnomalous) {
+                            this.game.triggerNoClipSequence();
+                            return newPosition;
+                        }
+                        // Absorción de impacto físico (freno de vector)
+                        return oldPosition;
+                    }
+                }
+                return newPosition;
+            }
+        }
+        // ============================================================================
+        // MÓDULO DE ECONOMÍA, ABSORCIÓN DE CONSUMIBLES Y TRADING
+        // ============================================================================
+        class EconomyModule {
+            constructor(gameEngine) {
+                this.game = gameEngine;
+                this.walletElement = document.getElementById('lbl-money');
+            }
+
+            addFunds(amount) {
+                this.game.stats.money += amount;
+                this.walletElement.innerText = this.game.stats.money;
+            }
+
+            buyItem(type) {
+                if (type === 'battery' && this.game.stats.money >= 20) {
+                    this.game.stats.money -= 20;
+                    this.game.stats.battery = Math.min(100, this.game.stats.battery + 60);
+                    this.game.networkModule.addLog("Batería de repuesto instalada con éxito.");
+                } else if (type === 'water' && this.game.stats.money >= 35) {
+                    this.game.stats.money -= 35;
+                    this.game.stats.sanity = Math.min(100, this.game.stats.sanity + 45);
+                    this.game.networkModule.addLog("Efecto purificador: Estabilidad mental restablecida.");
+                } else {
+                    this.game.networkModule.addLog("Fondos insuficientes en el Nexo Virtual.");
+                }
+                this.walletElement.innerText = this.game.stats.money;
+            }
+        }
+
+        // ============================================================================
+        // MOTOR MAESTRO DE LA SIMULACIÓN DE LOS BACKROOMS (NÚCLEO UNIFICADO)
+        // ============================================================================
+        class AdvancedBackroomsSimulation {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 1000);
+                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true, powerPreference: "high-performance" });
+                
+                this.chunks = new Map();
+                this.remotePlayers = {};
+                this.stepSoundTimer = 0;
+
+                // Estadísticas dinámicas de supervivencia (Estados de simulación AAA)
+                this.stats = {
+                    level: 0, money: 0,
+                    sanity: 100, stamina: 100, battery: 100,
+                    isCrouching: false, isRunning: false, eyeHeight: 1.72
+                };
+
+                // Teclado PC & Mecánicas de inclinación
+                this.keyboardInput = { w: false, s: false, a: false, d: false, shift: false };
+
+                // Inicializar Sub-Módulos del Sistema
+                this.graphicsModule = new GraphicsModule(this);
+                this.audioEngineModule = new AudioEngineModule(this);
+                this.levelModule = new LevelModule(this);
+                this.networkModule = new NetworkModule(this);
+                this.economyModule = new EconomyModule(this);
+
+                this.setupCoreControls();
+                this.setupVRControllers();
+            }
+
+            setupCoreControls() {
+                this.camera.position.set(4, this.stats.eyeHeight, 4);
+
+                // Mapeo nativo de entradas mecánicas
+                window.addEventListener('keydown', (e) => {
+                    let k = e.code;
+                    if (k === 'KeyW' || k === 'ArrowUp') this.keyboardInput.w = true;
+                    if (k === 'KeyS' || k === 'ArrowDown') this.keyboardInput.s = true;
+                    if (k === 'KeyA' || k === 'ArrowLeft') this.keyboardInput.a = true;
+                    if (k === 'KeyD' || k === 'ArrowRight') this.keyboardInput.d = true;
+                    if (k === 'ShiftLeft') this.keyboardInput.shift = true;
+                    if (k === 'KeyC' || k === 'ControlLeft') this.toggleCrouchState(true);
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    let k = e.code;
+                    if (k === 'KeyW' || k === 'ArrowUp') this.keyboardInput.w = false;
+                    if (k === 'KeyS' || k === 'ArrowDown') this.keyboardInput.s = false;
+                    if (k === 'KeyA' || k === 'ArrowLeft') this.keyboardInput.a = false;
+                    if (k === 'KeyD' || k === 'ArrowRight') this.keyboardInput.d = false;
+                    if (k === 'ShiftLeft') this.keyboardInput.shift = false;
+                    if (k === 'KeyC' || k === 'ControlLeft') this.toggleCrouchState(false);
+                });
+
+                // Captura de puntero para pantallas planas de PC
+                this.renderer.domElement.addEventListener('click', () => {
+                    if (!this.renderer.xr.isPresenting) {
+                        this.renderer.domElement.requestPointerLock();
+                    }
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (document.pointerLockElement === this.renderer.domElement && !this.renderer.xr.isPresenting) {
+                        this.camera.rotation.y -= e.movementX * 0.0022;
+                        this.camera.rotation.x -= e.movementY * 0.0022;
+                        this.camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.camera.rotation.x));
+                    }
+                });
+            }
+
+            setupVRControllers() {
+                // Capturar sensores de movimiento inalámbricos de Oculus Touch Quest
+                this.controller1 = this.renderer.xr.getController(0);
+                this.controller2 = this.renderer.xr.getController(1);
+                this.scene.add(this.controller1);
+                this.scene.add(this.controller2);
+            }
+
+            toggleCrouchState(active) {
+                this.stats.isCrouching = active;
+                this.stats.eyeHeight = active ? 0.85 : 1.72;
+                document.getElementById('crosshair').style.scale = active ? "0.6" : "1.0";
+            }
+
+            triggerNoClipSequence() {
+                this.audioEngineModule.playSanityCollapse();
+                this.economyModule.addFunds(150);
+                let nextLevel = this.stats.level === 0 ? 1 : this.stats.level === 1 ? 5000 : 0;
+                this.levelModule.loadLevel(nextLevel);
+            }
+
+            spawnRemotePlayer(id) {
+                // Modelo tridimensional adaptado para visores (Traje de aislamiento Async de alta visibilidad)
+                const group = new THREE.Group();
+                
+                const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.4), new THREE.MeshStandardMaterial({ color: 0xffbb00, roughness: 0.4 }));
+                cylinder.position.y = 0.7;
+                cylinder.castShadow = true;
+                group.add(cylinder);
+
+                const visor = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.05 }));
+                visor.position.set(0, 1.35, -0.05);
+                group.add(visor);
+
+                this.scene.add(group);
+                this.remotePlayers[id] = group;
+            }
+
+            updateRemotePlayerTransform(id, data) {
+                if (this.remotePlayers[id]) {
+                    // Interpolación de fotogramas lineal para mitigar fluctuaciones de ping de la red
+                    this.remotePlayers[id].position.set(data.x, data.y - 0.8, data.z);
+                    this.remotePlayers[id].rotation.y = data.ry;
+                }
+            }
+
+            removeRemotePlayer(id) {
+                if (this.remotePlayers[id]) {
+                    this.scene.remove(this.remotePlayers[id]);
+                    delete this.remotePlayers[id];
+                }
+            }
+
+            update() {
+                const delta = Math.min(this.graphicsModule.game.clock.getDelta(), 0.1);
+                const previousPosition = this.camera.position.clone();
+
+                // 1. LÓGICA DE VELOCIDAD DINÁMICA Y AJUSTE DE ESTAMINA
+                let currentMoveSpeed = 0.07;
+                let isMoving = this.keyboardInput.w || this.keyboardInput.s || this.keyboardInput.a || this.keyboardInput.d;
+
+                if (this.keyboardInput.shift && isMoving && this.stats.stamina > 4) {
+                    this.stats.isRunning = true;
+                    currentMoveSpeed = 0.14;
+                    this.stats.stamina = Math.max(0, this.stats.stamina - delta * 32);
+                } else {
+                    this.stats.isRunning = false;
+                    this.stats.stamina = Math.min(100, this.stats.stamina + delta * 16);
+                }
+
+                if (this.stats.isCrouching) {
+                    currentMoveSpeed = 0.038;
+                }
+
+                // Soporte de movimiento direccional en VR (Stick de mando izquierdo)
+                const session = this.renderer.xr.getSession();
+                if (session && session.inputSources && session.inputSources[0] && session.inputSources[0].gamepad) {
+                    let axes = session.inputSources[0].gamepad.axes;
+                    if (Math.abs(axes[2]) > 0.1 || Math.abs(axes[3]) > 0.1) {
+                        isMoving = true;
+                        this.camera.position.x += axes[2] * currentMoveSpeed;
+                        this.camera.position.z += axes[3] * currentMoveSpeed;
+                    }
+                }
+
+                // 2. APLICAR TRASLACIÓN DE COORDENADAS PC
+                let forwardVector = new THREE.Vector3();
+                this.camera.getWorldDirection(forwardVector);
+                forwardVector.y = 0;
+                forwardVector.normalize();
+                
+                let lateralVector = new THREE.Vector3(-forwardVector.z, 0, forwardVector.x);
+
+                let nextPos = this.camera.position.clone();
+                if (this.keyboardInput.w) nextPos.addScaledVector(forwardVector, currentMoveSpeed);
+                if (this.keyboardInput.s) nextPos.addScaledVector(forwardVector, -currentMoveSpeed);
+                if (this.keyboardInput.a) nextPos.addScaledVector(lateralVector, -currentMoveSpeed);
+                if (this.keyboardInput.d) nextPos.addScaledVector(lateralVector, currentMoveSpeed);
+
+                // Amortiguación cinemática de la cámara (Transición vertical de altura)
+                nextPos.y = THREE.MathUtils.lerp(this.camera.position.y, this.stats.eyeHeight, 0.12);
+
+                // Validar colisiones contra las geometrías registradas
+                this.camera.position.copy(this.levelModule.checkCollisions(previousPosition, nextPos));
+
+                // 3. ACTUALIZAR INFRAESTRUCTURA INFINITA
+                this.levelModule.updateInfiniteGrid(this.camera.position.x, this.camera.position.z);
+
+                // 4. DESGASTE DE DISPOSITIVOS Y CONSUMO DE CORDURA
+                this.stats.battery = Math.max(0, this.stats.battery - delta * 0.55);
+                this.graphicsModule.flashlight.intensity = (this.stats.battery / 100) * 5.5;
+
+                if (this.stats.battery <= 0) {
+                    this.stats.sanity = Math.max(0, this.stats.sanity - delta * 2.8); // Degradación mental en penumbra
+                } else {
+                    this.stats.sanity = Math.max(0, this.stats.sanity - delta * 0.12);
+                }
+
+                // Generador dinámico de audio de pisadas por vibración/paso
+                if (isMoving) {
+                    this.stepSoundTimer += delta * (this.stats.isRunning ? 2.6 : this.stats.isCrouching ? 0.95 : 1.65);
+                    if (this.stepSoundTimer > 1.0) {
+                        this.audioEngineModule.playStepSound(this.stats.isRunning, this.stats.isCrouching);
+                        this.stepSoundTimer = 0;
+                    }
+                }
+
+                // Transmitir coordenadas de red al canal P2P
+                this.networkModule.broadcastData({
+                    type: 'transform',
+                    x: this.camera.position.x,
+                    y: this.camera.position.y,
+                    z: this.camera.position.z,
+                    ry: this.camera.rotation.y
+                });
+
+                // 5. VOLCAR CAMBIOS DE ESTADO HACIA LA INTERFAZ HUD DEL USUARIO
+                document.getElementById('stamina-bar').style.width = `${this.stats.stamina}%`;
+                document.getElementById('sanity-bar').style.width = `${this.stats.sanity}%`;
+                document.getElementById('battery-bar').style.width = `${this.stats.battery}%`;
+                
+                document.getElementById('txt-stamina').innerText = Math.round(this.stats.stamina);
+                document.getElementById('txt-sanity').innerText = Math.round(this.stats.sanity);
+                document.getElementById('txt-battery').innerText = Math.round(this.stats.battery);
+
+                if (this.stats.sanity <= 0) {
+                    alert("SINDROME DE INESTABILIDAD DETECTADO: Perdiste la noción de la realidad.");
+                    this.stats.sanity = 100;
+                    this.levelModule.loadLevel(0);
+                }
+
+                // Renderizador final de escena para el Frame actual
+                this.graphicsModule.renderer.render(this.scene, this.camera);
+            }
+
+            resize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.graphicsModule.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        // Instanciar motor al cargar la estructura del DOM
+        let game;
+        window.addEventListener('DOMContentLoaded', () => {
+            game = new AdvancedBackroomsSimulation();
+        });
+    </script>
+</body>
+</html>
+
