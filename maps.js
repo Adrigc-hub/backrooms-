@@ -3,130 +3,160 @@ class LevelModule {
         this.game = gameEngine;
         this.scene = gameEngine.scene;
         this.collidableObjects = [];
+        this.escapeTriggers = [];
         this.wallSize = 4;
-        this.mapSize = 35; // Tamaño fijo del mapa (35x35 bloques cerrados para evitar bugs)
+        this.mapSize = 24; // 24x24 bloques compactos ideales para rendimiento móvil en Oculus
         
+        // Nombres basados estrictamente en el Lore Accurate
+        this.levelNames = {
+            0: "Nivel 0: El Laberinto de Tapiz Húmedo",
+            1: "Nivel 1: Zona de Almacenamiento Industrial",
+            2: "Nivel 2: Tuberías de Mantenimiento Sofocante",
+            3: "Nivel 3: Estación Eléctrica Interna",
+            4: "Nivel 4: Oficina del Abandono Vacío",
+            5: "Nivel 5: El Hotel del Terror Clásico",
+            6: "Nivel 6: Luces Fuera (Oscuridad Absoluta)",
+            7: "Nivel 7: El Océano de la Talasofobia",
+            8: "Nivel 8: Sistema de Cavernas Infinitas",
+            9: "Nivel 9: Suburbios Sintéticos",
+            10: "Nivel 10: Campos de Trigo Sin Sol",
+            11: "Nivel 11: La Ciudad Infinita de Concreto",
+            12: "Nivel 12: Matriz de Almacenamiento Digital",
+            13: "Nivel 13: El Edificio de Apartamentos Infinitos",
+            14: "Nivel 14: Hospital de la Paranoia Mental",
+            5000: "Nivel Secreto: Los Escalones de la Locura"
+        };
+
+        // Las 5 formas oficiales de escape del Lore
+        this.escapeMethods = [
+            "Atravesar una pared de tapiz húmedo inestable.",
+            "Dejarse caer a través de un sumidero oscuro en el suelo.",
+            "Forzar la entrada cruzando una puerta anti-incendios sin marcar.",
+            "Sufrir un desmayo por pérdida total de cordura (NoClip Mental).",
+            "Caminar directamente hacia una pared de ladrillos parpadeante."
+        ];
+
         this.initMaterials();
     }
 
     initMaterials() {
-        const createTex = (color1, color2) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64; canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = color1; ctx.fillRect(0,0,64,64);
-            ctx.fillStyle = color2;
-            for(let i=0; i<300; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
-            let t = new THREE.CanvasTexture(canvas);
-            t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+        const buildTex = (c1, c2, dots) => {
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = c1; ctx.fillRect(0,0,64,64);
+            ctx.fillStyle = c2;
+            if(dots) { for(let i=0; i<200; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 1, 1); }
+            let t = new THREE.CanvasTexture(canvas); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
             return t;
         };
-
         this.mats = {
-            level0: new THREE.MeshStandardMaterial({ map: createTex('#c3b47b', '#948753'), roughness: 0.8 }),
-            level1: new THREE.MeshStandardMaterial({ map: createTex('#363636', '#141414'), roughness: 0.5, metalness: 0.4 }),
-            stairLevel: new THREE.MeshStandardMaterial({ map: createTex('#222222', '#111111'), roughness: 0.9 }),
-            floor: new THREE.MeshStandardMaterial({ map: createTex('#594f38', '#383121'), roughness: 0.4 }),
-            ceiling: new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.9 })
+            l0: new THREE.MeshStandardMaterial({ map: buildTex('#c2b276', '#9e905d', true), roughness: 0.9 }),
+            l1: new THREE.MeshStandardMaterial({ map: buildTex('#474747', '#2b2b2b', false), roughness: 0.5, metalness: 0.6 }),
+            l5000: new THREE.MeshStandardMaterial({ map: buildTex('#1a1a1c', '#0d0d0e', true), roughness: 0.95 }),
+            floor: new THREE.MeshStandardMaterial({ map: buildTex('#544933', '#362f21', true), roughness: 0.6 }),
+            ceil: new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.9 })
         };
     }
 
-    loadLevel(levelNum, fromNetwork = false) {
-        if(levelNum > 49 && levelNum !== 5000) levelNum = 0; // Límite de 50 mapas principales (0-49)
-        
+    loadLevel(levelNum, methodIndex = 0, fromNetwork = false) {
         this.game.stats.level = levelNum;
-        document.getElementById('lbl-level').innerText = levelNum;
+        document.getElementById('lbl-level').innerText = this.levelNames[levelNum] || `Nivel ${levelNum}`;
+        document.getElementById('lbl-mission').innerText = `Forma de salida usada: ${this.escapeMethods[methodIndex]}`;
 
-        // Limpieza total de geometrías viejas
+        // Limpieza de geometrías
         this.collidableObjects.forEach(obj => this.scene.remove(obj));
         this.collidableObjects = [];
+        this.escapeTriggers = [];
 
-        // Generar estructura del mapa basado en el número de nivel
         const group = new THREE.Group();
         const wallGeom = new THREE.BoxGeometry(this.wallSize, this.wallSize, this.wallSize);
         
-        // Elegir material según el nivel
-        let currentMat = this.mats.level0;
-        if (levelNum === 1) currentMat = this.mats.level1;
-        if (levelNum === 5000) currentMat = this.mats.stairLevel;
+        let activeMat = this.mats.l0;
+        if(levelNum >= 1) activeMat = this.mats.l1;
+        if(levelNum === 5000) activeMat = this.mats.l5000;
 
-        // Crear Suelo y Techo cerrado
-        const totalSize = this.mapSize * this.wallSize;
-        const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), this.mats.floor);
-        floorMesh.rotation.x = -Math.PI / 2;
-        group.add(floorMesh);
+        const totalWidth = this.mapSize * this.wallSize;
+        
+        // Suelo y Techo
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(totalWidth, totalWidth), this.mats.floor);
+        floor.rotation.x = -Math.PI / 2; group.add(floor);
+        const ceil = new THREE.Mesh(new THREE.PlaneGeometry(totalWidth, totalWidth), this.mats.ceil);
+        ceil.rotation.x = Math.PI / 2; ceil.position.y = this.wallSize; group.add(ceil);
 
-        const ceilMesh = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), this.mats.ceiling);
-        ceilMesh.rotation.x = Math.PI / 2; ceilMesh.position.y = this.wallSize;
-        group.add(ceilMesh);
-
-        // Generar laberinto único usando la semilla matemática del nivel actual
+        // Algoritmo de laberinto determinista
         for (let i = 0; i < this.mapSize; i++) {
             for (let j = 0; j < this.mapSize; j++) {
-                // Bordes exteriores (Paredes perimetrales del mapa para no caer al vacío)
+                // Muros de contención perimetral
                 if (i === 0 || j === 0 || i === this.mapSize - 1 || j === this.mapSize - 1) {
-                    const wall = new THREE.Mesh(wallGeom, currentMat);
-                    wall.position.set(i*this.wallSize - totalSize/2, this.wallSize/2, j*this.wallSize - totalSize/2);
-                    group.add(wall);
-                    this.collidableObjects.push(wall);
+                    const wall = new THREE.Mesh(wallGeom, activeMat);
+                    wall.position.set(i*this.wallSize - totalWidth/2, this.wallSize/2, j*this.wallSize - totalWidth/2);
+                    group.add(wall); this.collidableObjects.push(wall);
                     continue;
                 }
 
-                // Evitar bloquear el spawn inicial
-                if(i > 15 && i < 20 && j > 15 && j < 20) continue;
+                if (i > 10 && i < 14 && j > 10 && j < 14) continue; // Salva de Spawn inicial
 
-                // Modulador matemático único por cada uno de los 50 niveles
-                let seed = Math.sin(i * 12.9 + j * 78.3 + levelNum * 5.5) * 43758.5453;
-                let pseudoRandom = seed - Math.floor(seed);
+                let seed = Math.sin(i * 16.1 + j * 45.7 + levelNum * 3.3) * 43758.5;
+                let pseudoRand = seed - Math.floor(seed);
 
-                if (pseudoRandom < 0.23) {
-                    const wall = new THREE.Mesh(wallGeom, currentMat);
-                    wall.position.set(i*this.wallSize - totalSize/2, this.wallSize/2, j*this.wallSize - totalSize/2);
+                if (pseudoRand < 0.22) {
+                    // Si estamos en el nivel de los escalones (5000), modificamos la altura del bloque para simular escaleras truncadas
+                    let adjustedGeom = wallGeom;
+                    let posY = this.wallSize / 2;
+                    if(levelNum === 5000) {
+                        adjustedGeom = new THREE.BoxGeometry(this.wallSize, (pseudoRand * 3) + 1, this.wallSize);
+                        posY = ((pseudoRand * 3) + 1) / 2;
+                    }
+
+                    const wall = new THREE.Mesh(adjustedGeom, activeMat);
+                    wall.position.set(i*this.wallSize - totalWidth/2, posY, j*this.wallSize - totalWidth/2);
                     
-                    // Hacer que algunas paredes aleatorias sean zonas NoClip transitables
-                    if(pseudoRandom < 0.015) {
-                        wall.isAnomalous = true;
+                    // Inyectar las 5 zonas de salida aleatorias mediante códigos especiales
+                    if(pseudoRand < 0.015) {
+                        wall.isEscapePoint = true;
+                        wall.escapeMethodIndex = Math.floor(pseudoRand * 300) % 5; 
+                        // Colorear sutilmente la anomalía en rojo para dar pistas al jugador
+                        wall.material = new THREE.MeshStandardMaterial({ color: 0x5c4235, roughness: 0.9 });
+                        this.escapeTriggers.push(wall);
                     } else {
-                        this.collidableObjects.push(wall); // Solo colisiona si no es anomalía
+                        this.collidableObjects.push(wall);
                     }
                     group.add(wall);
                 }
             }
         }
 
-        // Añadir iluminación cenital fija
-        let light = new THREE.PointLight(levelNum === 1 ? 0x8cd3ff : 0xfffdb5, 2.5, 30);
-        light.position.set(0, this.wallSize - 0.5, 0);
-        group.add(light);
+        // Iluminación cenital
+        let light = new THREE.PointLight(levelNum === 5000 ? 0xff4444 : 0xfffae6, levelNum === 6 ? 0.2 : 2.5, 35);
+        light.position.set(0, this.wallSize - 0.5, 0); group.add(light);
 
         this.scene.add(group);
         this.currentMapGroup = group;
-        this.collidableObjects.push(...group.children.filter(c => c.geometry && c.geometry.type === "BoxGeometry" && !c.isAnomalous));
 
         if (!fromNetwork) {
-            this.game.networkModule.broadcastData({ type: 'noclip', level: levelNum });
+            this.game.networkModule.broadcastData({ type: 'noclip', level: levelNum, methodIndex: methodIndex });
         }
     }
 
     checkCollisions(oldPos, newPos) {
-        let pRadius = 0.4;
+        let radius = 0.38;
         let pBB = new THREE.Box3(
-            new THREE.Vector3(newPos.x - pRadius, 0.1, newPos.z - pRadius),
-            new THREE.Vector3(newPos.x + pRadius, this.wallSize - 0.1, newPos.z + pRadius)
+            new THREE.Vector3(newPos.x - radius, 0.1, newPos.z - radius),
+            new THREE.Vector3(newPos.x + radius, this.wallSize - 0.1, newPos.z + radius)
         );
 
-        // Verificar colisión con paredes del mapa actual
+        // Evaluar colisiones físicas regulares
         for (let i = 0; i < this.collidableObjects.length; i++) {
-            let obstacleBB = new THREE.Box3().setFromObject(this.collidableObjects[i]);
-            if (pBB.intersectsBox(obstacleBB)) {
-                return oldPos; // Bloquear movimiento
-            }
+            let obsBB = new THREE.Box3().setFromObject(this.collidableObjects[i]);
+            if (pBB.intersectsBox(obsBB)) return oldPos; 
         }
 
-        // Activar NoClip si chocas con una pared falsa o sales de los límites establecidos
-        if (Math.abs(newPos.x) > (this.mapSize*this.wallSize)/2 - 2 || Math.abs(newPos.z) > (this.mapSize*this.wallSize)/2 - 2) {
-            this.game.triggerNoClip();
-            return oldPos;
+        // Evaluar colisiones contra puntos de escape (NoClip)
+        for(let i=0; i < this.escapeTriggers.length; i++) {
+            let triggerBB = new THREE.Box3().setFromObject(this.escapeTriggers[i]);
+            if (pBB.intersectsBox(triggerBB)) {
+                this.game.executeEscapeSequence(this.escapeTriggers[i].escapeMethodIndex);
+                return oldPos;
+            }
         }
 
         return newPos;
