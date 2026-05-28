@@ -3,32 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>The Backrooms: Peer Network AAA</title>
+    <title>THE BACKROOMS: SIMULATION REALITY COLLAPSE (MULTIPLAYER AAA)</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
-        #game-canvas { width: 100vw; height: 100vh; display: block; }
-        #hud {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; display: flex; flex-direction: column;
-            justify-content: space-between; padding: 25px; box-sizing: border-box;
-            color: #d1c294; text-shadow: 2px 2px 3px #000;
+        /* ============================================================================
+           ESTILOS MAESTROS Y ELEMENTOS DE INTERFAZ (HUD)
+           ============================================================================ */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #020202;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            width: 100vw;
+            height: 100vh;
         }
-        .hud-panel {
-            background: rgba(15, 15, 10, 0.85); border: 2px solid #6e5d3f;
-            padding: 12px; border-radius: 4px; pointer-events: auto;
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
         }
-        .bar { width: 180px; height: 10px; background: #222; border: 1px solid #6e5d3f; margin-top: 4px; }
-        .bar-fill { height: 100%; width: 100%; transition: width 0.1s; }
-        #stamina-fill { background: #3adeb4; }
-        #sanity-fill { background: #de3a3a; }
-        #battery-fill { background: #ded03a; }
+        #hud-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 25px;
+            box-sizing: border-box;
+            color: #ebdcb2;
+            text-shadow: 2px 2px 4px #000, 0 0 10px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+        .panel {
+            background: linear-gradient(135deg, rgba(18, 18, 12, 0.92) 0%, rgba(10, 10, 5, 0.96) 100%);
+            border: 2px solid #7d6b47;
+            padding: 15px;
+            border-radius: 6px;
+            pointer-events: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7), inset 0 0 15px rgba(125,107,71,0.15);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            min-width: 240px;
+        }
+        .bar-container {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .bar-label {
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .bar-outer {
+            width: 100%;
+            height: 12px;
+            background: #1a1a14;
+            border: 1px solid #54472f;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 5px #000;
+        }
+        .bar-inner {
+            height: 100%;
+            width: 100%;
+            transition: width 0.1s linear, background-color 0.3s ease;
+        }
+        #stamina-bar { background: #2cd6a1; box-shadow: 0 0 8px rgba(44,214,161,0.4); }
+        #sanity-bar { background: #ff4747; box-shadow: 0 0 8px rgba(255,71,71,0.4); }
+        #battery-bar { background: #ffcc00; box-shadow: 0 0 8px rgba(255,204,0,0.4); }
+        
+        .input-flat {
+            background: #14140f;
+            border: 1px solid #7d6b47;
+            color: #fff;
+            padding: 8px;
+            font-family: monospace;
+            border-radius: 4px;
+            width: 140px;
+            outline: none;
+        }
+        .input-flat:focus {
+            border-color: #ebdcb2;
+            box-shadow: 0 0 5px rgba(235,220,178,0.5);
+        }
         button {
-            background: #6e5d3f; color: #fff; border: 1px solid #fff;
-            padding: 6px 12px; cursor: pointer; font-family: monospace; font-weight: bold;
+            background: #7d6b47;
+            color: #fff;
+            border: 1px solid #ebdcb2;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-family: monospace;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: all 0.2s ease;
         }
-        button:hover { background: #947e58; }
-        #vr-btn-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 999; }
-        .hidden { display: none !important; }
+        button:hover {
+            background: #ebdcb2;
+            color: #000;
+            box-shadow: 0 0 10px rgba(235,220,178,0.4);
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            background: rgba(255,255,255,0.35);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            transition: scale 0.1s ease;
+        }
+        #vr-btn-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+        }
+        /* Estilos de la Terminal de la Tienda In-Game */
+        .shop-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .log-box {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #3d331e;
+            padding: 6px;
+            height: 60px;
+            overflow-y: hidden;
+            font-size: 11px;
+            color: #a39674;
+            margin-top: 8px;
+            border-radius: 3px;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
@@ -38,30 +158,51 @@
 
     <canvas id="game-canvas"></canvas>
 
-    <div id="hud">
-        <div style="display: flex; justify-content: space-between; width: 100%;">
-            <div class="hud-panel">
-                <div>ID DE TU SALA: <span id="lobby-id" style="color:#6be0ff; font-weight:bold;">Generando...</span></div>
-                <div>NIVEL ACTUAL: <span id="lbl-level">0</span></div>
-                <input type="text" id="connect-id" placeholder="ID de amigo" style="width:120px; margin-top:5px;">
-                <button onclick="game.connectToFriend()">Conectar</button>
+    <div id="hud-layer">
+        <div style="display: flex; justify-content: space-between; width: 100%; pointer-events: none;">
+            <div class="panel">
+                <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px; color:#ffcc00; letter-spacing: 1px;">SALA MULTIJUGADOR</div>
+                <div>TU ID DE RED: <span id="lobby-id" style="color:#6be0ff; font-weight:bold;">Sincronizando...</span></div>
+                <div style="margin-top: 8px; display: flex; gap: 6px; pointer-events: auto;">
+                    <input type="text" id="connect-id" class="input-flat" placeholder="ID del Explorador">
+                    <button onclick="game.networkModule.connectToPeer()">Vincular</button>
+                </div>
+                <div class="log-box" id="net-logs">Sincronizando canales cuánticos... Listo.</div>
             </div>
-            <div class="hud-panel">
-                <div>ESTAMINA:<div class="bar"><div id="stamina-fill" class="bar-fill"></div></div></div>
-                <div>CORDURA:<div class="bar"><div id="sanity-fill" class="bar-fill"></div></div></div>
-                <div>LINTERNA:<div class="bar"><div id="battery-fill" class="bar-fill"></div></div></div>
+
+            <div class="panel stats-grid">
+                <div class="bar-container">
+                    <div class="bar-label">ESTAMINA FÍSICA (<span id="txt-stamina">100</span>%)</div>
+                    <div class="bar-outer"><div id="stamina-bar" class="bar-inner"></div></div>
+                </div>
+                <div class="bar-container">
+                    <div class="bar-label">ESTABILIDAD MENTAL (<span id="txt-sanity">100</span>%)</div>
+                    <div class="bar-outer"><div id="sanity-bar" class="bar-inner"></div></div>
+                </div>
+                <div class="bar-container">
+                    <div class="bar-label">CELDA DE LINTERNA (<span id="txt-battery">100</span>%)</div>
+                    <div class="bar-outer"><div id="battery-bar" class="bar-inner"></div></div>
+                </div>
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
-            <div class="hud-panel">
-                <div>MONEDAS DE ALMENDRA: $<span id="lbl-money">0</span></div>
-                <div>MISION: <span id="lbl-mission" style="color:#fff;">Encuentra una pared inestable para hacer NoClip.</span></div>
+        <div id="crosshair"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%; pointer-events: none;">
+            <div class="panel" style="max-width: 350px;">
+                <div style="font-size: 15px; font-weight: bold; color: #ebdcb2;">NIVEL DE REALIDAD: <span id="lbl-level" style="color:#ffcc00;">0</span></div>
+                <div style="margin: 6px 0;">RECOMPENSAS: <span style="color:#6bff84; font-weight:bold;">$<span id="lbl-money">0</span></span></div>
+                <div style="border-top: 1px solid #3d331e; padding-top: 6px; font-size: 12px;">
+                    <b>OBJETIVO:</b> <span id="lbl-mission" style="color: #fff;">Explora las anomalías del terreno para forzar un NoClip dimensional.</span>
+                </div>
             </div>
-            <div class="hud-panel">
-                <b>TIENDA RADICAL</b><br>
-                <button onclick="game.buyItem('bateria')">Batería ($15)</button>
-                <button onclick="game.buyItem('agua')">Agua ($25)</button>
+
+            <div class="panel" style="min-width: 280px;">
+                <div style="font-weight: bold; font-size: 13px; text-align: center; border-bottom: 1px solid #7d6b47; padding-bottom: 4px; color: #ffcc00;">SUMINISTROS DE ASYNC</div>
+                <div class="shop-grid">
+                    <button onclick="game.economyModule.buyItem('battery')">Batería ($20)</button>
+                    <button onclick="game.economyModule.buyItem('water')">Agua Almendra ($35)</button>
+                </div>
             </div>
         </div>
     </div>
@@ -69,243 +210,89 @@
     <div id="vr-btn-container"></div>
 
     <script>
-        class P2PBackroomsEngine {
-            constructor() {
-                this.canvas = document.getElementById('game-canvas');
-                this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+        // ============================================================================
+        // MÓDULO DE RED MULTIJUGADOR PEER-TO-PEER (P2P COOP)
+        // ============================================================================
+        class NetworkModule {
+            constructor(gameEngine) {
+                this.game = gameEngine;
+                this.peer = null;
+                this.connections = [];
+                this.logElement = document.getElementById('net-logs');
+                this.idElement = document.getElementById('lobby-id');
                 
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.xr.enabled = true;
-                this.renderer.shadowMap.enabled = true;
-
-                this.clock = new THREE.Clock();
-                this.stats = { level: 0, money: 0, sanity: 100, stamina: 100, battery: 100, isCrouching: false, isRunning: false };
-                this.input = { forward: false, backward: false, left: false, right: false, shift: false };
-                
-                this.chunks = new Map();
-                this.peerConnections = [];
-                this.remotePlayersMeshes = {};
-
-                this.initGraphics();
-                this.initNetworkP2P();
-                this.initControls();
-                this.loadLevel(0);
-                
-                this.renderer.setAnimationLoop(() => this.update());
-                window.addEventListener('resize', () => this.resize());
+                this.initPeer();
             }
 
-            initGraphics() {
-                this.scene.background = new THREE.Color(0x14140f);
-                this.scene.fog = new THREE.FogExp2(0x14140f, 0.06);
+            initPeer() {
+                // Instanciar conexión PeerJS usando brokers públicos globales para navegadores
+                this.peer = new Peer(null, {
+                    debug: 1
+                });
 
-                let ambient = new THREE.AmbientLight(0xffffff, 0.25);
-                this.scene.add(ambient);
-
-                this.flashlight = new THREE.SpotLight(0xfff3cd, 3, 30, Math.PI / 5, 0.5, 1);
-                this.flashlight.castShadow = true;
-                this.camera.add(this.flashlight);
-                this.flashlight.position.set(0,0,0);
-                this.flashlight.target.position.set(0, 0, -1);
-                this.camera.add(this.flashlight.target);
-                this.scene.add(this.camera);
-
-                document.getElementById('vr-btn-container').appendChild(THREE.VRButton.createButton(this.renderer));
-
-                // Crear texturas procedurales ligeras
-                let canvas = document.createElement('canvas');
-                canvas.width = 128; canvas.height = 128;
-                let ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#bfae7e'; ctx.fillRect(0,0,128,128);
-                ctx.fillStyle = '#aba274';
-                for(let i=0; i<800; i++) ctx.fillRect(Math.random()*128, Math.random()*128, 2, 2);
-                
-                this.wallTex = new THREE.CanvasTexture(canvas);
-                this.wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.8 });
-            }
-
-            initNetworkP2P() {
-                // Conexión directa entre navegadores usando PeerJS (Servidor de paso libre)
-                this.peer = new Peer();
-                
                 this.peer.on('open', (id) => {
-                    document.getElementById('lobby-id').innerText = id;
+                    this.idElement.innerText = id;
+                    this.addLog("Canal abierto. Comparte tu ID con tu compañero.");
                 });
 
                 this.peer.on('connection', (conn) => {
-                    this.setupConnection(conn);
+                    this.handleIncomingConnection(conn);
+                });
+
+                this.peer.on('error', (err) => {
+                    this.addLog("Error de enlace cuántico: " + err.type);
+                    console.error(err);
                 });
             }
 
-            connectToFriend() {
-                let targetId = document.getElementById('connect-id').value;
-                if(targetId) {
-                    let conn = this.peer.connect(targetId);
-                    this.setupConnection(conn);
-                }
+            connectToPeer() {
+                let targetId = document.getElementById('connect-id').value.trim();
+                if (!targetId) return;
+                
+                this.addLog(`Intentando enlazar con: ${targetId}...`);
+                let conn = this.peer.connect(targetId, {
+                    serialization: 'json'
+                });
+                
+                this.handleIncomingConnection(conn);
             }
 
-            setupConnection(conn) {
+            handleIncomingConnection(conn) {
                 conn.on('open', () => {
-                    this.peerConnections.push(conn);
-                    // Crear avatar visual para el amigo
-                    let geom = new THREE.CylinderGeometry(0.3, 0.3, 1.6);
-                    let mat = new THREE.MeshStandardMaterial({ color: 0xffbb00 });
-                    let mesh = new THREE.Mesh(geom, mat);
-                    this.scene.add(mesh);
-                    this.remotePlayersMeshes[conn.peer] = mesh;
+                    this.addLog(`¡Explorador conectado de forma segura!`);
+                    this.connections.push(conn);
+                    this.game.spawnRemotePlayer(conn.peer);
                 });
 
                 conn.on('data', (data) => {
-                    if(data.type === 'move' && this.remotePlayersMeshes[conn.peer]) {
-                        this.remotePlayersMeshes[conn.peer].position.set(data.x, data.y - 0.8, data.z);
-                    }
+                    this.processNetworkData(conn.peer, data);
+                });
+
+                conn.on('close', () => {
+                    this.addLog(`Se ha perdido la señal de un explorador.`);
+                    this.game.removeRemotePlayer(conn.peer);
+                    this.connections = this.connections.filter(c => c.peer !== conn.peer);
                 });
             }
 
-            initControls() {
-                this.camera.position.set(2, 1.7, 2);
-
-                window.addEventListener('keydown', (e) => {
-                    if(e.code === 'KeyW') this.input.forward = true;
-                    if(e.code === 'KeyS') this.input.backward = true;
-                    if(e.code === 'KeyA') this.input.left = true;
-                    if(e.code === 'KeyD') this.input.right = true;
-                    if(e.code === 'ShiftLeft') this.input.shift = true;
-                    if(e.code === 'KeyC') this.toggleCrouch(true);
-                });
-
-                window.addEventListener('keyup', (e) => {
-                    if(e.code === 'KeyW') this.input.forward = false;
-                    if(e.code === 'KeyS') this.input.backward = false;
-                    if(e.code === 'KeyA') this.input.left = false;
-                    if(e.code === 'KeyD') this.input.right = false;
-                    if(e.code === 'ShiftLeft') this.input.shift = false;
-                    if(e.code === 'KeyC') this.toggleCrouch(false);
-                });
-
-                this.canvas.addEventListener('click', () => {
-                    if(!this.renderer.xr.isPresenting) this.canvas.requestPointerLock();
-                });
-
-                document.addEventListener('mousemove', (e) => {
-                    if(document.pointerLockElement === this.canvas) {
-                        this.camera.rotation.y -= e.movementX * 0.0025;
-                        this.camera.rotation.x -= e.movementY * 0.0025;
-                        this.camera.rotation.x = Math.max(-Math.PI/2.3, Math.min(Math.PI/2.3, this.camera.rotation.x));
-                    }
-                });
-            }
-
-            toggleCrouch(active) {
-                this.stats.isCrouching = active;
-            }
-
-            loadLevel(num) {
-                this.stats.level = num;
-                document.getElementById('lbl-level').innerText = num;
-                this.chunks.forEach(c => this.scene.remove(c));
-                this.chunks.clear();
-                this.generateProceduralSegment(0, 0);
-            }
-
-            generateProceduralSegment(cx, cz) {
-                let group = new THREE.Group();
-                let wallGeom = new THREE.BoxGeometry(4, 4, 4);
-                
-                for(let i=0; i<10; i++) {
-                    for(let j=0; j<10; j++) {
-                        if(Math.random() < 0.25 && (i>1 || j>1)) {
-                            let wall = new THREE.Mesh(wallGeom, this.wallMat);
-                            wall.position.set(i*4 - 20, 2, j*4 - 20);
-                            group.add(wall);
-                        }
+            broadcastData(data) {
+                for (let i = 0; i < this.connections.length; i++) {
+                    if (this.connections[i].open) {
+                        this.connections[i].send(data);
                     }
                 }
-                this.scene.add(group);
-                this.chunks.set(`${cx},${cz}`, group);
             }
 
-            buyItem(item) {
-                if(item === 'bateria' && this.stats.money >= 15) { this.stats.money -= 15; this.stats.battery = 100; }
-                if(item === 'agua' && this.stats.money >= 25) { this.stats.money -= 25; this.stats.sanity = 100; }
-                document.getElementById('lbl-money').innerText = this.stats.money;
+            processNetworkData(peerId, data) {
+                if (data.type === 'transform') {
+                    this.game.updateRemotePlayerTransform(peerId, data);
+                } else if (data.type === 'noclip') {
+                    this.addLog(`Un explorador alteró la realidad hacia el Nivel ${data.level}`);
+                    this.game.levelModule.loadLevel(data.level, true);
+                }
             }
 
-            update() {
-                let delta = this.clock.getDelta();
-                let speed = this.input.shift && this.stats.stamina > 10 ? 0.12 : 0.06;
-                if(this.stats.isCrouching) speed = 0.03;
-
-                // Control de Estamina
-                if(this.input.shift && (this.input.forward || this.input.left)) {
-                    this.stats.stamina = Math.max(0, this.stats.stamina - delta * 30);
-                } else {
-                    this.stats.stamina = Math.min(100, this.stats.stamina + delta * 15);
-                }
-
-                // Linterna y Cordura
-                this.stats.battery = Math.max(0, this.stats.battery - delta * 1.5);
-                this.flashlight.intensity = (this.stats.battery / 100) * 3;
-                this.stats.sanity = Math.max(0, this.stats.sanity - delta * (this.stats.battery <= 0 ? 3 : 0.2));
-
-                // Movimiento espacial
-                let dir = new THREE.Vector3();
-                this.camera.getWorldDirection(dir);
-                dir.y = 0; dir.normalize();
-                let side = new THREE.Vector3(-dir.z, 0, dir.x);
-
-                if(this.input.forward) this.camera.position.addScaledVector(dir, speed);
-                if(this.input.backward) this.camera.position.addScaledVector(dir, -speed);
-                if(this.input.left) this.camera.position.addScaledVector(side, -speed);
-                if(this.input.right) this.camera.position.addScaledVector(side, speed);
-
-                // Altura según estado
-                let targetHeight = this.stats.isCrouching ? 0.9 : 1.7;
-                this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, targetHeight, 0.1);
-
-                // Mecánica NoClip fortuita
-                if(Math.random() < 0.0003 && (this.input.forward)) {
-                    this.stats.money += 100;
-                    document.getElementById('lbl-money').innerText = this.stats.money;
-                    this.loadLevel(this.stats.level + 1);
-                }
-
-                // Sincronizar coordenadas por la red P2P
-                this.peerConnections.forEach(conn => {
-                    conn.send({
-                        type: 'move',
-                        x: this.camera.position.x,
-                        y: this.camera.position.y,
-                        z: this.camera.position.z
-                    });
-                });
-
-                // Actualizar barras HUD
-                document.getElementById('stamina-fill').style.width = `${this.stats.stamina}%`;
-                document.getElementById('sanity-fill').style.width = `${this.stats.sanity}%`;
-                document.getElementById('battery-fill').style.width = `${this.stats.battery}%`;
-
-                if(this.stats.sanity <= 0) {
-                    alert("Perdiste la cordura...");
-                    this.stats.sanity = 100;
-                    this.loadLevel(0);
-                }
-
-                this.renderer.render(this.scene, this.camera);
-            }
-
-            resize() {
-                this.camera.aspect = window.innerWidth / window.innerHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            addLog(text) {
+                this.logElement.innerText = text;
             }
         }
-
-        let game;
-        window.addEventListener('DOMContentLoaded', () => { game = new P2PBackroomsEngine(); });
-    </script>
-</body>
-</html>
