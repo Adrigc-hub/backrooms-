@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>The Backrooms VR - 27 Levels Procedural</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #010103; font-family: 'Courier New', monospace; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* MAIN MENU */
+        #main-menu { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #1a130b 0%, #030201 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        h1 { font-size: 3rem; margin-bottom: 5px; color: #e6b14a; letter-spacing: 5px; text-align: center; text-shadow: 0 0 10px rgba(230,177,74,0.3); }
+        .subtitle { font-size: 0.9rem; margin-bottom: 30px; color: #8a734e; }
+        .menu-container { display: flex; gap: 30px; width: 85%; max-width: 1000px; justify-content: center; flex-wrap: wrap; }
+        .panel { background: rgba(10, 7, 4, 0.9); border: 2px solid #5c4a2b; padding: 20px; border-radius: 4px; box-shadow: 0 0 25px rgba(0,0,0,0.9); min-width: 280px; }
+        .btn { background: #3a2e18; border: 1px solid #947745; color: #f7e6c4; padding: 12px 20px; font-size: 1rem; cursor: pointer; transition: all 0.2s ease; font-family: inherit; width: 100%; margin: 8px 0; border-radius: 2px; }
+        .btn:hover { background: #614e2b; color: #fff; box-shadow: 0 0 12px #947745; }
+        
+        /* HUD IN-GAME */
+        #hud { position: absolute; bottom: 20px; left: 20px; z-index: 10; color: #fff; pointer-events: none; display: none; }
+        .hud-bar { background: rgba(5, 3, 1, 0.85); padding: 15px; border-radius: 4px; border-left: 4px solid #e6b14a; min-width: 280px; border-top: 1px solid #3a2e18; }
+        .hud-line { margin: 5px 0; font-size: 0.95rem; text-shadow: 1px 1px 2px #000; }
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%; pointer-events: none; display: none; }
+        #game-alert { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); color: #ff3333; font-size: 1.8rem; font-weight: bold; text-align: center; z-index: 99; pointer-events: none; display: none; }
+        
+        /* QUEST LOG */
+        #quest-log { position: absolute; top: 20px; right: 20px; background: rgba(5, 3, 1, 0.85); border: 2px solid #5c4a2b; padding: 15px; border-radius: 4px; z-index: 10; color: #f7e6c4; max-width: 300px; display: none; }
+        .quest-title { color: #ffcc00; font-weight: bold; margin-bottom: 8px; }
+        .quest-item { font-size: 0.85rem; margin: 5px 0; color: #a89476; }
+        
+        /* LEVEL SELECTION */
+        .level-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; margin: 15px 0; max-height: 300px; overflow-y: auto; }
+        .level-btn { padding: 10px; background: #2a2015; border: 1px solid #5c4a2b; color: #f7e6c4; cursor: pointer; border-radius: 2px; font-size: 0.85rem; transition: all 0.2s; }
+        .level-btn:hover { background: #3a2e18; border-color: #947745; }
+        .level-btn.special { border-color: #ff6600; color: #ff6600; font-weight: bold; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="main-menu">
+        <h1>THE BACKROOMS</h1>
+        <div class="subtitle">MULTIPLAYER CO-OP // 27 LEVELS // PROCEDURAL ENGINE V3</div>
+        
+        <div class="menu-container">
+            <div class="panel">
+                <div style="font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #5c4a2b; padding-bottom: 5px; color: #ffcc00;">⚡ ENTER THE BACKROOMS</div>
+                <p style="color: #a89476; font-size: 0.85rem; line-height: 1.4;">27 procedurally generated levels with 5 unique noclip mechanics. Find the 2 secret endings. Max 5 players per server.</p>
+                <button class="btn" onclick="enterBackrooms()">START GAME</button>
+                <button class="btn" style="background: #5a1414; border-color: #ff4444;" onclick="showLevelSelector()">LEVEL SELECT (DEV)</button>
+            </div>
+
+            <div class="panel">
+                <div style="font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #5c4a2b; padding-bottom: 5px; color: #ffcc00;">💰 SHOP & INVENTORY</div>
+                <div class="hud-line">Credits: <span id="shop-cash" style="color:#e6b14a;">$0</span></div>
+                <div class="hud-line">Water: <span id="shop-water" style="color:#00ffff;">0</span></div>
+                <div class="hud-line">Items: <span id="shop-items" style="color:#00ff66;">0</span></div>
+                <button class="btn" style="font-size:0.85rem;" onclick="buyItem(100)">Flashlight ($100)</button>
+                <button class="btn" style="font-size:0.85rem;" onclick="buyItem(300)">Entity Scanner ($300)</button>
+                <button class="btn" style="font-size:0.85rem;" onclick="buyItem(150)">Water Bottle ($150)</button>
+            </div>
+
+            <div class="panel">
+                <div style="font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #5c4a2b; padding-bottom: 5px; color: #ffcc00;">📊 STATS</div>
+                <div class="hud-line">Levels Found: <span id="shop-levels" style="color:#ff9900;">0/27</span></div>
+                <div class="hud-line">Entities Met: <span id="shop-entities" style="color:#ff3333;">0</span></div>
+                <div class="hud-line">Server: <span style="color:#00ff66;">ONLINE (5/5)</span></div>
+                <button class="btn" style="font-size:0.85rem; background: #1a3a1a; border-color: #00ff66;" onclick="showControls()">CONTROLS</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="quest-log">
+        <div class="quest-title">🎯 ACTIVE QUESTS</div>
+        <div id="quest-list"></div>
+    </div>
+
+    <div id="hud">
+        <div class="hud-bar">
+            <div class="hud-line" style="font-weight: bold; color: #ffcc00;" id="hud-level">LEVEL 0: LIMINAL SPACES</div>
+            <div class="hud-line">Sanity: <span id="hud-sanity" style="color: #00ff66;">100%</span></div>
+            <div class="hud-line">Health: <span id="hud-health" style="color: #ff6666;">100%</span></div>
+            <div class="hud-line">Water: <span id="hud-water" style="color: #00ffff;">0</span></div>
+            <div class="hud-line">Credits: <span id="hud-cash" style="color: #e6b14a;">$0</span></div>
+            <div class="hud-line" id="stair-counter" style="display:none; color:#ff3333; font-weight:bold;">Stairs: <span id="stair-val">0</span>/50</div>
+            <div class="hud-line" id="computer-hint" style="display:none; color:#ff00ff; font-weight:bold;">🖥️ DEV COMPUTER NEARBY</div>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="game-alert"></div>
+    <div id="canvas-container"></div>
+
+    <script>
+        let scene, camera, renderer;
+        let currentLevel = 0;
+        let sanity = 100;
+        let health = 100;
+        let cash = 0;
+        let water = 0;
+        let items = 0;
+        let objectsStructure = [];
+        let entities = [];
+        let netPlayers = [];
+        let moveKeys = { Forward: false, Backward: false, Left: false, Right: false };
+        let playerVelocity = new THREE.Vector3();
+        let clock = new THREE.Clock();
+        
+        // Stair puzzle
+        let stairsCount = 0;
+        let isInStairs = false;
+        
+        // Secret ending 2 - Dev computer
+        let computerFound = false;
+        let computerCodeEntered = false;
+        let devComputerLevel = -1;
+        let inFunLevel = false;
+        let keyFound = false;
+        let deletedLevels = new Set();
+        
+        // Quest system
+        let activeQuests = [];
+        let questCounter = 0;
+
+        // 27 Levels Configuration
+        const levelsConfig = {
+            0: { name: "Level 0: Liminal Spaces", entities: ['Smiler'], density: 12, special: 'tutorial' },
+            1: { name: "Level 1: Loading Zone", entities: ['Bacteria', 'Wretches'], density: 14 },
+            2: { name: "Level 2: Pipes", entities: ['Smiler'], density: 10 },
+            3: { name: "Level 3: The Breeding Grounds", entities: ['Dread Beast'], density: 8 },
+            4: { name: "Level 4: The Pipe Dreams", entities: ['Bacteria', 'Smiler'], density: 15 },
+            5: { name: "Level 5: Electrical Grid", entities: ['Smiler'], density: 11 },
+            6: { name: "Level 6: Suburbs", entities: ['Wretches', 'Bacteria'], density: 13 },
+            7: { name: "Level 7: The End", entities: ['Smiler'], density: 9 },
+            8: { name: "Level 8: Deep Descent", entities: ['Dread Beast'], density: 7 },
+            9: { name: "Level 9: The Darkened Halls", entities: ['Smiler', 'Bacteria'], density: 14 },
+            10: { name: "Level 10: The Safe Zone (?)", entities: ['Kitty'], density: 2, special: 'kitty' },
+            11: { name: "Level 11: Abandoned Office", entities: ['Wretches'], density: 12 },
+            12: { name: "Level 12: Storage Vaults", entities: ['Bacteria', 'Smiler'], density: 13 },
+            13: { name: "Level 13: The Mines", entities: ['Dread Beast'], density: 8 },
+            14: { name: "Level 14: Lost Subway", entities: ['Smiler'], density: 11 },
+            15: { name: "Level 15: The Spiral", entities: ['Wretches', 'Bacteria'], density: 14 },
+            16: { name: "Level 16: Forgotten Archives", entities: ['Smiler'], density: 10 },
+            17: { name: "Level 17: The Market", entities: ['Dread Beast'], density: 9 },
+            18: { name: "Level 18: Fractured Reality", entities: ['Bacteria', 'Smiler'], density: 13 },
+            19: { name: "Level 19: The Repository", entities: ['Smiler'], density: 11 },
+            20: { name: "Level 20: Industrial Sector", entities: ['Wretches', 'Dread Beast'], density: 12 },
+            21: { name: "Level 21: The Courtyard", entities: ['Bacteria'], density: 10 },
+            22: { name: "Level 22: Dimension FAIL", entities: ['Smiler', 'Wretches'], density: 14 },
+            23: { name: "Level 23: The Corridor", entities: ['Dread Beast'], density: 8 },
+            24: { name: "Level 24: Infinite Stairs", entities: ['The King'], density: 1, special: 'stairs' },
+            25: { name: "Level 25: The Void", entities: ['Bacteria'], density: 6 },
+            26: { name: "Level FUN: Happy Ending", entities: ['No Entity'], density: 0, special: 'fun' },
+        };
+
+        // Texture generator
+        function createBackroomsTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            if (type === 'wall') {
+                ctx.fillStyle = '#ccb77e';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#b39f66';
+                for (let i = 0; i < 400; i++) {
+                    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 8);
+                }
+            } else if (type === 'floor') {
+                ctx.fillStyle = '#82734e';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#615536';
+                for (let i = 0; i < 2000; i++) {
+                    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+                }
+            } else if (type === 'kitty') {
+                ctx.fillStyle = '#ffccd5';
+                ctx.fillRect(0, 0, 256, 256);
+            } else if (type === 'fun') {
+                ctx.fillStyle = '#ffff99';
+                ctx.fillRect(0, 0, 256, 256);
+                for (let i = 0; i < 50; i++) {
+                    ctx.fillStyle = ['#ff6b6b', '#4ecdc4', '#45b7d1'][Math.floor(Math.random()*3)];
+                    ctx.fillRect(Math.random() * 256, Math.random() * 256, 20, 20);
+                }
+            } else {
+                ctx.fillStyle = '#3a3a3a';
+                ctx.fillRect(0, 0, 256, 256);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        // 5 Noclip Types
+        const noclipTypes = [
+            { name: "Walk Through Wall", chance: 0.3 },
+            { name: "Quantum Shift", chance: 0.25 },
+            { name: "Door Void", chance: 0.25 },
+            { name: "Fluorescent Glow", chance: 0.1 },
+            { name: "Forbidden Knowledge", chance: 0.1 }
+        ];
+
+        function getRandomNoclipType() {
+            const rand = Math.random();
+            let cumulative = 0;
+            for (let type of noclipTypes) {
+                cumulative += type.chance;
+                if (rand <= cumulative) return type.name;
+            }
+            return noclipTypes[0].name;
+        }
+
+        window.buyItem = function(cost) {
+            if(cash >= cost) { 
+                cash -= cost; 
+                water += 1;
+                items += 1;
+                updateUI(); 
+                triggerAlert("✓ Item purchased!", "#00ff66");
+            }
+            else { alert("Insufficient credits."); }
+        };
+
+        function updateUI() {
+            document.getElementById('shop-cash').innerText = "$" + cash;
+            document.getElementById('shop-water').innerText = water;
+            document.getElementById('shop-items').innerText = items;
+            document.getElementById('hud-cash').innerText = "$" + cash;
+            document.getElementById('hud-water').innerText = water;
+            document.getElementById('hud-health').innerText = Math.floor(health) + "%";
+            document.getElementById('hud-sanity').innerText = Math.floor(sanity) + "%";
+        }
+
+        window.enterBackrooms = function() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('crosshair').style.display = 'block';
+            document.getElementById('quest-log').style.display = 'block';
+            
+            initGameEngine();
+            buildProceduralLevel(currentLevel);
+            generateQuests();
+            animateLoop();
+        };
+
+        window.showLevelSelector = function() {
+            let html = '<div style="color:#f7e6c4;"><div style="font-weight:bold;margin-bottom:10px;">Select Level:</div>';
+            for (let i = 0; i <= 26; i++) {
+                const isSpecial = levelsConfig[i].special ? ' ⭐' : '';
+                const isDeleted = deletedLevels.has(i) ? ' [DELETED]' : '';
+                html += `<button class="level-btn" onclick="jumpToLevel(${i})">L${i}${isSpecial}</button>`;
+            }
+            html += '</div>';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            div.style.position = 'fixed';
+            div.style.top = '50%';
+            div.style.left = '50%';
+            div.style.transform = 'translate(-50%, -50%)';
+            div.style.background = 'rgba(10, 7, 4, 0.95)';
+            div.style.border = '2px solid #5c4a2b';
+            div.style.padding = '20px';
+            div.style.zIndex = '1000';
+            div.style.borderRadius = '4px';
+            div.style.maxHeight = '80vh';
+            div.style.overflowY = 'auto';
+            document.body.appendChild(div);
+            
+            let clickListener = (e) => {
+                if (e.target === div) {
+                    div.remove();
+                    document.removeEventListener('click', clickListener);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', clickListener), 100);
+        };
+
+        window.jumpToLevel = function(level) {
+            if (deletedLevels.has(level)) {
+                alert("This level has been deleted via dev computer!");
+                return;
+            }
+            currentLevel = level;
+            inFunLevel = (level === 26);
+            buildProceduralLevel(currentLevel);
+            document.querySelector('[style*="position: fixed"]')?.remove();
+        };
+
+        window.showControls = function() {
+            alert("CONTROLS:\nWASD/Arrows - Move\nMouse Drag - Look Around\nGet near noclip gates to advance levels\nCollect water for health\nFind the infinite stairs at level 24\nFind the dev computer in a level for secret ending 2!");
+        };
+
+        function generateQuests() {
+            activeQuests = [
+                { id: 1, title: "Explore 5 Levels", progress: 0, target: 5, reward: 500 },
+                { id: 2, title: "Collect 10 Water", progress: 0, target: 10, reward: 300 },
+                { id: 3, title: "Survive 2 Minutes", progress: 0, target: 120, reward: 200 }
+            ];
+            updateQuestLog();
+        }
+
+        function updateQuestLog() {
+            const questList = document.getElementById('quest-list');
+            questList.innerHTML = '';
+            activeQuests.forEach(q => {
+                const percent = Math.floor((q.progress / q.target) * 100);
+                questList.innerHTML += `<div class="quest-item">${q.title}: ${q.progress}/${q.target} (${percent}%)</div>`;
+            });
+        }
+
+        function initGameEngine() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera.position.set(0, 1.6, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.xr.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            window.addEventListener('keydown', (e) => {
+                if(e.code === 'KeyW' || e.code === 'ArrowUp') moveKeys.Forward = true;
+                if(e.code === 'KeyS' || e.code === 'ArrowDown') moveKeys.Backward = true;
+                if(e.code === 'KeyA' || e.code === 'ArrowLeft') moveKeys.Left = true;
+                if(e.code === 'KeyD' || e.code === 'ArrowRight') moveKeys.Right = true;
+            });
+            window.addEventListener('keyup', (e) => {
+                if(e.code === 'KeyW' || e.code === 'ArrowUp') moveKeys.Forward = false;
+                if(e.code === 'KeyS' || e.code === 'ArrowDown') moveKeys.Backward = false;
+                if(e.code === 'KeyA' || e.code === 'ArrowLeft') moveKeys.Left = false;
+                if(e.code === 'KeyD' || e.code === 'ArrowRight') moveKeys.Right = false;
+            });
+
+            let isDragging = false;
+            window.addEventListener('mousedown', () => isDragging = true);
+            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mousemove', (e) => {
+                if(isDragging) {
+                    camera.rotation.y -= e.movementX * 0.003;
+                }
+            });
+
+            // Spawn 4 other players
+            for(let p=0; p<4; p++) {
+                let mate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), new THREE.MeshStandardMaterial({color: 0x947745}));
+                mate.position.set((Math.random()*4)-2, 0.8, (Math.random()*4)-2);
+                scene.add(mate);
+                netPlayers.push(mate);
+            }
+        }
+
+        function buildProceduralLevel(idx) {
+            objectsStructure.forEach(obj => scene.remove(obj));
+            entities.forEach(ent => scene.remove(ent.mesh));
+            objectsStructure = [];
+            entities = [];
+
+            const lvl = levelsConfig[idx];
+            document.getElementById('hud-level').innerText = lvl.name.toUpperCase();
+            
+            const bgColor = idx === 26 ? 0xffff99 : (idx === 10 ? 0xffb6c1 : 0x6e6144);
+            scene.background = new THREE.Color(bgColor);
+            scene.fog = new THREE.FogExp2(bgColor, 0.08);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambientLight);
+            objectsStructure.push(ambientLight);
+
+            const pointLight = new THREE.PointLight(0xfffee0, 1.2, 30);
+            pointLight.position.set(0, 3.5, 0);
+            scene.add(pointLight);
+            objectsStructure.push(pointLight);
+
+            // Infinite Stairs (Level 24)
+            if(idx === 24) {
+                isInStairs = true;
+                stairsCount = 0;
+                document.getElementById('stair-counter').style.display = 'block';
+                
+                const stepGeo = new THREE.BoxGeometry(4, 0.2, 1.2);
+                const stepMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+                for(let i=0; i<60; i++) {
+                    let step = new THREE.Mesh(stepGeo, stepMat);
+                    let angle = i * 0.35;
+                    step.position.set(Math.cos(angle)*3.5, i * 0.28, Math.sin(angle)*3.5);
+                    step.rotation.y = -angle;
+                    scene.add(step);
+                    objectsStructure.push(step);
+                }
+
+                let escapeAbyss = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2), new THREE.MeshBasicMaterial({color: 0x000000}));
+                escapeAbyss.position.set(0, 0, 0);
+                escapeAbyss.name = "void_center";
+                scene.add(escapeAbyss);
+                objectsStructure.push(escapeAbyss);
+
+                camera.position.set(3.5, 0.6, 0);
+                return;
+            } else {
+                isInStairs = false;
+                document.getElementById('stair-counter').style.display = 'none';
+            }
+
+            // Level FUN
+            if(idx === 26) {
+                // Colorful fun level
+                for(let i = 0; i < 50; i++) {
+                    const colors = [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xf9d56e];
+                    const box = new THREE.Mesh(
+                        new THREE.BoxGeometry(1, 2, 1),
+                        new THREE.MeshStandardMaterial({color: colors[Math.floor(Math.random()*colors.length)]})
+                    );
+                    box.position.set((Math.random()-0.5)*30, (Math.random()-0.5)*10, (Math.random()-0.5)*30);
+                    scene.add(box);
+                    objectsStructure.push(box);
+                }
+                
+                // Key in level FUN
+                if(!keyFound) {
+                    let key = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.5), new THREE.MeshStandardMaterial({color: 0xffff00, emissive: 0xffff00}));
+                    key.position.set(0, 2, 0);
+                    key.name = "dev_key";
+                    scene.add(key);
+                    objectsStructure.push(key);
+                }
+                
+                camera.position.set(0, 1.6, 0);
+                return;
+            }
+
+            // Standard procedural level
+            const wallTexture = createBackroomsTexture('wall');
+            const floorTexture = createBackroomsTexture('floor');
+
+            const wallMat = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.7 });
+            const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 });
+
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+            objectsStructure.push(floor);
+
+            // Procedural maze
+            const size = 20;
+            const boxGeo = new THREE.BoxGeometry(3, 4, 3);
+            for(let x=0; x<size; x++) {
+                for(let z=0; z<size; z++) {
+                    if(x===0 || x===size-1 || z===0 || z===size-1 || (Math.random() > 0.78 && (x>2 || z>2))) {
+                        let wall = new THREE.Mesh(boxGeo, wallMat);
+                        wall.position.set((x - size/2)*3, 2, (z - size/2)*3);
+                        scene.add(wall);
+                        objectsStructure.push(wall);
+                    }
+                }
+            }
+
+            // Water bottles
+            for(let b=0; b<8; b++) {
+                let bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.3), new THREE.MeshStandardMaterial({color: 0x00ffff, emissive: 0x003333}));
+                bottle.position.set((Math.random()*30 - 15), 0.15, (Math.random()*30 - 15));
+                bottle.name = "water";
+                scene.add(bottle);
+                objectsStructure.push(bottle);
+            }
+
+            // Dev computer (one per game, random level)
+            if(devComputerLevel === -1) {
+                devComputerLevel = Math.floor(Math.random() * 24) + 1; // Don't spawn in level 0, 24, 26
+            }
+            if(idx === devComputerLevel && !computerFound) {
+                let computer = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 0.5), new THREE.MeshStandardMaterial({color: 0x00ff00, emissive: 0x00aa00}));
+                computer.position.set(0, 0.6, 0);
+                computer.name = "dev_computer";
+                scene.add(computer);
+                objectsStructure.push(computer);
+            }
+
+            // Noclip gates
+            let noclipTrigger = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshBasicMaterial({visible: false}));
+            noclipTrigger.position.set((Math.random()*20 - 10), 1, (Math.random()*20 - 10));
+            noclipTrigger.name = "noclip_gate";
+            scene.add(noclipTrigger);
+            objectsStructure.push(noclipTrigger);
+
+            // Entities
+            lvl.entities.forEach(type => {
+                if(type === 'No Entity') return;
+                let entMesh = new THREE.Mesh(
+                    type === 'Kitty' ? new THREE.CylinderGeometry(0.05, 0.05, 3.8) : new THREE.BoxGeometry(0.5, 1.7, 0.5),
+                    new THREE.MeshBasicMaterial({color: type === 'Kitty' ? 0x070707 : 0x111111})
+                );
+                entMesh.position.set((Math.random()*20 - 10), type === 'Kitty' ? 1.9 : 0.85, (Math.random()*20 - 10));
+                scene.add(entMesh);
+                entities.push({ mesh: entMesh, type: type, dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize() });
+            });
+
+            camera.position.set(0, 1.6, 0);
+        }
+
+        function triggerAlert(msg, color = "#ff3333") {
+            const el = document.getElementById('game-alert');
+            el.innerText = msg; el.style.color = color; el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 3500);
+        }
+
+        function animateLoop() {
+            renderer.setAnimationLoop(animateLoop);
+            const delta = clock.getDelta();
+            const time = performance.now();
+
+            // Player movement
+            playerVelocity.set(0, 0, 0);
+            const speed = 4.5;
+            
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            forward.y = 0; right.y = 0;
+            forward.normalize(); right.normalize();
+
+            if(moveKeys.Forward) camera.position.addScaledVector(forward, speed * delta);
+            if(moveKeys.Backward) camera.position.addScaledVector(forward, -speed * delta);
+            if(moveKeys.Left) camera.position.addScaledVector(right, -speed * delta);
+            if(moveKeys.Right) camera.position.addScaledVector(right, speed * delta);
+
+            if(!isInStairs && camera.position.y !== 1.6) camera.position.y = 1.6;
+
+            const pos = camera.position;
+
+            // Infinite stairs puzzle
+            if(isInStairs) {
+                let currentStep = Math.floor(pos.y / 0.28);
+                if(currentStep > stairsCount && currentStep <= 50) {
+                    stairsCount = currentStep;
+                    document.getElementById('stair-val').innerText = stairsCount;
+                    if(stairsCount === 50) triggerAlert("STEP 50! JUMP TO CENTER NOW!", "#00ff66");
+                }
+
+                if(pos.y > 10 && Math.abs(pos.x) < 1.3 && Math.abs(pos.z) < 1.3) {
+                    if(stairsCount >= 50) {
+                        triggerAlert("🎉 SECRET ENDING 1: ESCAPED THE BACKROOMS!", "#00ff66");
+                        cash += 5000;
+                        setTimeout(() => { currentLevel = 0; buildProceduralLevel(0); isInStairs = false; }, 4000);
+                    } else {
+                        triggerAlert("❌ WRONG! Back to Level 0.", "#ff3333");
+                        currentLevel = 0;
+                        buildProceduralLevel(currentLevel);
+                    }
+                }
+            }
+
+            // Intersections & pickups
+            for(let i = objectsStructure.length - 1; i >= 0; i--) {
+                let obj = objectsStructure[i];
+                if(!obj.name) continue;
+                let d = pos.distanceTo(obj.position);
+
+                if(obj.name === "water" && d < 1.0) {
+                    scene.remove(obj);
+                    objectsStructure.splice(i, 1);
+                    water++;
+                    health = Math.min(100, health + 10);
+                    cash += 75;
+                    updateUI();
+                    triggerAlert("+1 Water", "#00ffff");
+                    if(activeQuests[1]) activeQuests[1].progress = Math.min(activeQuests[1].progress + 1, activeQuests[1].target);
+                    updateQuestLog();
+                }
+
+                if(obj.name === "dev_computer" && d < 2.0) {
+                    document.getElementById('computer-hint').style.display = 'block';
+                    if(computerCodeEntered === false) {
+                        const input = prompt("Enter computer code (hint: 333):");
+                        if(input === "333") {
+                            computerCodeEntered = true;
+                            computerFound = true;
+                            triggerAlert("✓ Code Accepted! Go to Level FUN to find the key.", "#ff00ff");
+                            document.getElementById('computer-hint').style.display = 'none';
+                        } else {
+                            triggerAlert("✗ Wrong code.", "#ff3333");
+                        }
+                    }
+                }
+
+                if(obj.name === "dev_key" && d < 1.0 && computerCodeEntered && inFunLevel) {
+                    scene.remove(obj);
+                    objectsStructure.splice(i, 1);
+                    keyFound = true;
+                    triggerAlert("🔑 Key obtained! Return to computer with key!", "#ffff00");
+                }
+
+                if(obj.name === "noclip_gate" && d < 1.2) {
+                    if(currentLevel < 27) {
+                        const noclipType = getRandomNoclipType();
+                        currentLevel++;
+                        if(currentLevel > 26) currentLevel = 26;
+                        triggerAlert(`✓ NOCLIP [${noclipType}] → Level ${currentLevel}`, "#ffaa00");
+                        if(activeQuests[0]) activeQuests[0].progress = Math.min(activeQuests[0].progress + 1, activeQuests[0].target);
+                        updateQuestLog();
+                        buildProceduralLevel(currentLevel);
+                    }
+                }
+            }
+
+            // Check if player can unlock level deletion (secret ending 2)
+            if(keyFound && computerFound && currentLevel === devComputerLevel) {
+                const input = prompt("Insert key into computer? Entering dev mode allows level deletion. Continue? (yes/no)");
+                if(input === "yes") {
+                    const levelToDelete = prompt("Enter level number to delete (0-26):");
+                    const levelNum = parseInt(levelToDelete);
+                    if(levelNum >= 0 && levelNum <= 26) {
+                        deletedLevels.add(levelNum);
+                        triggerAlert(`⚠️ Level ${levelNum} DELETED from reality!`, "#ff0000");
+                        if(deletedLevels.size === 27) {
+                            triggerAlert("🎉 SECRET ENDING 2: ALL BACKROOMS DELETED! YOU WON!", "#ffff00");
+                            setTimeout(() => { currentLevel = 0; buildProceduralLevel(0); }, 4000);
+                        }
+                    }
+                }
+            }
+
+            // Multiplayer players movement
+            netPlayers.forEach((p, idx) => {
+                p.position.x += Math.sin(time*0.001 + idx)*delta*1.5;
+                p.position.z += Math.cos(time*0.0012 + idx)*delta*1.5;
+            });
+
+            // Entity AI
+            entities.forEach(ent => {
+                ent.mesh.position.addScaledVector(ent.dir, 1.8 * delta);
+                if(Math.abs(ent.mesh.position.x) > 25 || Math.abs(ent.mesh.position.z) > 25) ent.dir.negate();
+
+                if(pos.distanceTo(ent.mesh.position) < 3.2) {
+                    sanity = Math.max(0, sanity - 15 * delta);
+                    document.getElementById('hud-sanity').innerText = Math.floor(sanity) + "%";
+                    if(sanity <= 0) {
+                        triggerAlert("💀 SANITY LOST... GAME OVER");
+                        setTimeout(() => { currentLevel = 0; buildProceduralLevel(0); sanity = 100; health = 100; updateUI(); }, 3000);
+                    }
+                }
+            });
+
+            // Health decay
+            health = Math.max(0, health - 2 * delta);
+            if(health <= 0) {
+                triggerAlert("💀 YOU DIED");
+                setTimeout(() => { currentLevel = 0; buildProceduralLevel(0); health = 100; sanity = 100; updateUI(); }, 3000);
+            }
+
+            // Update quests
+            if(activeQuests[2]) activeQuests[2].progress = Math.min(activeQuests[2].progress + delta, activeQuests[2].target);
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
